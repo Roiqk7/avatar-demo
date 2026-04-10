@@ -1,5 +1,6 @@
 import io
 import logging
+import wave
 
 from openai import OpenAI
 
@@ -41,4 +42,12 @@ class WhisperSttService:
         text: str = response.text.strip()
         logger.debug('Transcribed: "%s"', text[:100])
 
-        return SttResult(text=text)
+        duration_ms: float = 0.0
+        if audio_format == "wav":
+            try:
+                with wave.open(io.BytesIO(audio)) as wf:
+                    duration_ms = wf.getnframes() / wf.getframerate() * 1000
+            except Exception:
+                pass
+
+        return SttResult(text=text, duration_ms=duration_ms)

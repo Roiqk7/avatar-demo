@@ -26,6 +26,8 @@ class LlmResult:
     """Result from LLM text generation."""
 
     response: str
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
 
 
 @dataclass(frozen=True)
@@ -35,6 +37,7 @@ class TtsResult:
     audio_data: bytes
     visemes: list[VisemeEvent] = field(default_factory=list)
     duration_ms: float = 0.0
+    characters_synthesized: int = 0
 
 
 @dataclass(frozen=True)
@@ -44,3 +47,24 @@ class PipelineResult:
     user_text: str
     response_text: str
     tts: TtsResult
+    stt_duration_ms: float = 0.0
+    llm_prompt_tokens: int = 0
+    llm_completion_tokens: int = 0
+
+
+@dataclass
+class SessionUsage:
+    """Accumulated API usage statistics across all pipeline calls in a session."""
+
+    stt_audio_ms: float = 0.0
+    llm_prompt_tokens: int = 0
+    llm_completion_tokens: int = 0
+    tts_characters: int = 0
+    call_count: int = 0
+
+    def add(self, result: "PipelineResult") -> None:
+        self.stt_audio_ms += result.stt_duration_ms
+        self.llm_prompt_tokens += result.llm_prompt_tokens
+        self.llm_completion_tokens += result.llm_completion_tokens
+        self.tts_characters += result.tts.characters_synthesized
+        self.call_count += 1

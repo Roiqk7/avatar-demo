@@ -64,7 +64,12 @@ class AzureTtsService:
                 ", ".join(f"{v.offset_ms:.0f}ms:{v.id}" for v in visemes[:10]),
             )
 
-            return TtsResult(audio_data=audio_data, visemes=visemes, duration_ms=duration_ms)
+            return TtsResult(
+                audio_data=audio_data,
+                visemes=visemes,
+                duration_ms=duration_ms,
+                characters_synthesized=len(text),
+            )
 
         cancellation: speechsdk.CancellationDetails = result.cancellation_details
         error_msg: str = f"TTS synthesis failed: {cancellation.reason}"

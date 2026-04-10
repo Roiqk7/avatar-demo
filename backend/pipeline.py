@@ -4,8 +4,13 @@ import os
 from pathlib import Path
 
 from backend.cli import Args
-from backend.models import PipelineResult, TtsResult
+from backend.models import PipelineResult, SessionUsage, TtsResult
 from backend.services import LlmService, SttService, TtsService
+
+# OpenAI Whisper pricing: $0.006 per minute of audio
+_WHISPER_COST_PER_MS: float = 0.006 / 60_000
+# Azure Neural TTS pricing: $16 per 1M characters
+_AZURE_TTS_COST_PER_CHAR: float = 16.0 / 1_000_000
 
 logger: logging.Logger = logging.getLogger("backend.pipeline")
 
@@ -17,6 +22,7 @@ class Pipeline:
         self._stt: SttService = stt
         self._llm: LlmService = llm
         self._tts: TtsService = tts
+        self._usage: SessionUsage = SessionUsage()
 
     def _safe_synthesize(self, text: str) -> TtsResult:
         """Run TTS, returning empty result on failure so the pipeline continues."""
@@ -36,8 +42,15 @@ class Pipeline:
         logger.info('[LLM] OK — "%s"', llm_result.response[:80])
         tts_result = self._safe_synthesize(llm_result.response)
 
-        result = PipelineResult(user_text=text, response_text=llm_result.response, tts=tts_result)
+        result = PipelineResult(
+            user_text=text,
+            response_text=llm_result.response,
+            tts=tts_result,
+            llm_prompt_tokens=llm_result.prompt_tokens,
+            llm_completion_tokens=llm_result.completion_tokens,
+        )
         self._log_summary(result)
+        self._usage.add(result)
         return result
 
     def process_audio(self, audio_path: str) -> PipelineResult:
@@ -56,8 +69,16 @@ class Pipeline:
         logger.info('[LLM] OK — "%s"', llm_result.response[:80])
         tts_result = self._safe_synthesize(llm_result.response)
 
-        result = PipelineResult(user_text=stt_result.text, response_text=llm_result.response, tts=tts_result)
+        result = PipelineResult(
+            user_text=stt_result.text,
+            response_text=llm_result.response,
+            tts=tts_result,
+            stt_duration_ms=stt_result.duration_ms,
+            llm_prompt_tokens=llm_result.prompt_tokens,
+            llm_completion_tokens=llm_result.completion_tokens,
+        )
         self._log_summary(result)
+        self._usage.add(result)
         return result
 
     def process_file(self, file_path: str) -> list[PipelineResult]:
@@ -113,6 +134,8 @@ class Pipeline:
         else:
             self._interactive(args)
 
+        self._print_usage_report()
+
     def _interactive(self, args: Args) -> None:
         """Interactive text input loop."""
         from backend.rendering.audio import play_audio
@@ -138,12 +161,40 @@ class Pipeline:
             else:
                 play_audio(result.tts)
 
+    def _print_usage_report(self) -> None:
+        """Print a session-wide API usage and estimated cost summary."""
+        u = self._usage
+        if u.call_count == 0:
+            return
+
+        stt_seconds: float = u.stt_audio_ms / 1000
+        stt_cost: float = u.stt_audio_ms * _WHISPER_COST_PER_MS
+        llm_total_tokens: int = u.llm_prompt_tokens + u.llm_completion_tokens
+        tts_cost: float = u.tts_characters * _AZURE_TTS_COST_PER_CHAR
+        total_cost: float = stt_cost + tts_cost
+
+        logger.info("─── Usage (%d call%s) ───", u.call_count, "" if u.call_count == 1 else "s")
+        if stt_seconds > 0:
+            logger.info("STT  %7.1f s audio   ~$%.4f", stt_seconds, stt_cost)
+        else:
+            logger.info("STT  — (text input only)")
+        if llm_total_tokens > 0:
+            logger.info(
+                "LLM  %7d tokens  ~$%.4f  (%d prompt + %d completion)",
+                llm_total_tokens, 0.0, u.llm_prompt_tokens, u.llm_completion_tokens,
+            )
+        else:
+            logger.info("LLM  — (echo, no API calls)")
+        logger.info("TTS  %7d chars   ~$%.4f", u.tts_characters, tts_cost)
+        logger.info("Total                ~$%.4f", total_cost)
+        logger.info("Note: costs are estimates based on standard pricing and may not reflect your actual billing (e.g. free tier).")
+
     @staticmethod
     def _log_summary(result: PipelineResult) -> None:
         """Log a clean summary of the pipeline result."""
         has_audio: bool = len(result.tts.audio_data) > 0
         audio_info: str = f"{result.tts.duration_ms / 1000:.1f}s, {len(result.tts.visemes)} visemes" if has_audio else "None"
-        logger.info("———")
+        logger.info("─── Result ───")
         logger.info('Input:  "%s"', result.user_text)
         logger.info('Output: "%s"', result.response_text)
         logger.info("Audio:  %s", audio_info)
