@@ -19,6 +19,11 @@ def main() -> None:
     args = parse_args()
     setup_logging(args.log_level)
 
+    if args.test_sprites:
+        from backend.rendering.avatar import test_sprites
+        test_sprites()
+        return
+
     try:
         settings = Settings.load()
     except KeyError as e:
