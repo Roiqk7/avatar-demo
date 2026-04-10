@@ -138,6 +138,13 @@ class Pipeline:
 
     def _interactive(self, args: Args) -> None:
         """Interactive text input loop."""
+        if args.render:
+            self._interactive_render(args)
+        else:
+            self._interactive_text(args)
+
+    def _interactive_text(self, args: Args) -> None:
+        """Interactive loop without avatar — just plays audio."""
         from backend.rendering.audio import play_audio
 
         logger.info("Interactive mode — type a message, or 'quit' to exit")
@@ -154,12 +161,50 @@ class Pipeline:
 
             result: PipelineResult = self.process_text(user_input)
             self._output_result(result, args)
+            play_audio(result.tts)
 
-            if args.render:
-                from backend.rendering.avatar import render_avatar
-                render_avatar(result)
-            else:
-                play_audio(result.tts)
+    def _interactive_render(self, args: Args) -> None:
+        """Interactive loop with a persistent avatar window.
+
+        Pygame must run on the main thread (macOS requirement), so we read
+        stdin on a daemon thread and feed results to the avatar window via
+        its thread-safe :meth:`play` method.
+        """
+        import threading
+
+        from backend.rendering.avatar import AvatarWindow
+
+        window = AvatarWindow()
+        if not window.ready:
+            logger.warning("Avatar assets not found — falling back to text mode")
+            self._interactive_text(args)
+            return
+
+        logger.info("Interactive mode (avatar) — type a message, or 'quit' to exit")
+
+        def _input_loop() -> None:
+            """Read stdin in a background thread, process, enqueue results."""
+            while True:
+                try:
+                    user_input: str = input("\nYou > ").strip()
+                except (EOFError, KeyboardInterrupt):
+                    break
+
+                if not user_input or user_input.lower() in ("quit", "exit", "q"):
+                    break
+
+                result: PipelineResult = self.process_text(user_input)
+                self._output_result(result, args)
+                window.play(result)
+
+            logger.info("Exiting")
+            window.request_close()
+
+        input_thread = threading.Thread(target=_input_loop, daemon=True)
+        input_thread.start()
+
+        # Main thread — runs the pygame render loop until closed.
+        window.run_forever()
 
     def _print_usage_report(self) -> None:
         """Print a session-wide API usage and estimated cost summary."""

@@ -11,6 +11,7 @@ class Args:
     file: str | None
     render: bool
     test_sprites: bool
+    test_animations: bool
     log_level: str
     output: str | None
 
@@ -28,6 +29,7 @@ def parse_args() -> Args:
 
     parser.add_argument("--render", action="store_true", help="Open pygame avatar window")
     parser.add_argument("--test-sprites", action="store_true", help="Open sprite test viewer (no pipeline needed)")
+    parser.add_argument("--test-animations", action="store_true", help="Browse and play all animations (no pipeline needed)")
     parser.add_argument(
         "--log-level",
         default="INFO",
@@ -43,6 +45,7 @@ def parse_args() -> Args:
         file=ns.file,
         render=ns.render,
         test_sprites=ns.test_sprites,
+        test_animations=ns.test_animations,
         log_level=ns.log_level,
         output=ns.output,
     )

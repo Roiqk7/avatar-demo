@@ -24,6 +24,11 @@ def main() -> None:
         test_sprites()
         return
 
+    if args.test_animations:
+        from backend.rendering.avatar import test_animations
+        test_animations()
+        return
+
     try:
         settings = Settings.load()
     except KeyError as e:
