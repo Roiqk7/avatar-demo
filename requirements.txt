@@ -3,3 +3,4 @@ azure-cognitiveservices-speech
 python-dotenv
 pygame
 numpy
+pytest

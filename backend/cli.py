@@ -10,6 +10,7 @@ class Args:
     audio: str | None
     file: str | None
     render: bool
+    test: bool
     test_sprites: bool
     test_animations: bool
     log_level: str
@@ -28,6 +29,7 @@ def parse_args() -> Args:
     input_group.add_argument("--file", type=str, help="Text file path to read input from")
 
     parser.add_argument("--render", action="store_true", help="Open pygame avatar window")
+    parser.add_argument("--test", action="store_true", help="Run all unit tests and exit")
     parser.add_argument("--test-sprites", action="store_true", help="Open sprite test viewer (no pipeline needed)")
     parser.add_argument("--test-animations", action="store_true", help="Browse and play all animations (no pipeline needed)")
     parser.add_argument(
@@ -44,6 +46,7 @@ def parse_args() -> Args:
         audio=ns.audio,
         file=ns.file,
         render=ns.render,
+        test=ns.test,
         test_sprites=ns.test_sprites,
         test_animations=ns.test_animations,
         log_level=ns.log_level,

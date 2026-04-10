@@ -34,6 +34,9 @@ python3 -m backend.main --text "Hello" --log-level DEBUG
 
 # Save audio + viseme JSON to disk
 python3 -m backend.main --text "Hello" --output ./output
+
+# Run full unit test suite
+python3 -m backend.main --test
 ```
 
 ## Architecture

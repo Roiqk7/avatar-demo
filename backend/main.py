@@ -19,6 +19,11 @@ def main() -> None:
     args = parse_args()
     setup_logging(args.log_level)
 
+    if args.test:
+        import pytest
+
+        raise SystemExit(pytest.main(["-q", "tests"]))
+
     if args.test_sprites:
         from backend.rendering.avatar import test_sprites
         test_sprites()

@@ -1,0 +1,238 @@
+import types
+
+import pytest
+
+from backend.models import PipelineResult, TtsResult, VisemeEvent
+from backend.rendering.audio import _ensure_mixer, play_audio
+from backend.rendering.avatar_window import get_active_viseme, render_avatar
+
+
+@pytest.mark.parametrize(
+    ("elapsed_ms", "expected"),
+    [
+        (0.0, 0),
+        (5.0, 0),
+        (10.0, 1),
+        (15.0, 1),
+        (20.0, 2),
+        (99.0, 2),
+    ],
+)
+def test_get_active_viseme(elapsed_ms: float, expected: int):
+    visemes = [VisemeEvent(id=1, offset_ms=10.0), VisemeEvent(id=2, offset_ms=20.0)]
+    assert get_active_viseme(visemes, elapsed_ms) == expected
+
+
+def test_render_avatar_skips_when_not_ready(monkeypatch: pytest.MonkeyPatch):
+    fake_window = types.SimpleNamespace(ready=False, play=lambda r: None, run_forever=lambda: None)
+    monkeypatch.setattr("backend.rendering.avatar_window.AvatarWindow", lambda oneshot: fake_window)
+    render_avatar(PipelineResult(user_text="u", response_text="r", tts=TtsResult(audio_data=b"")))
+
+
+def test_render_avatar_plays_when_ready(monkeypatch: pytest.MonkeyPatch):
+    calls = {"play": 0, "run": 0}
+
+    class _Window:
+        ready = True
+
+        def play(self, _):
+            calls["play"] += 1
+
+        def run_forever(self):
+            calls["run"] += 1
+
+    monkeypatch.setattr("backend.rendering.avatar_window.AvatarWindow", lambda oneshot: _Window())
+    render_avatar(PipelineResult(user_text="u", response_text="r", tts=TtsResult(audio_data=b"")))
+    assert calls == {"play": 1, "run": 1}
+
+
+def test_avatar_module_getattr_exports():
+    import backend.rendering.avatar as avatar
+
+    assert avatar.__getattr__("AvatarWindow").__name__ == "AvatarWindow"
+    assert callable(avatar.__getattr__("render_avatar"))
+    assert callable(avatar.__getattr__("test_sprites"))
+    assert callable(avatar.__getattr__("test_animations"))
+
+
+def test_avatar_module_getattr_unknown():
+    import backend.rendering.avatar as avatar
+
+    with pytest.raises(AttributeError):
+        avatar.__getattr__("does_not_exist")
+
+
+def test_ensure_mixer_only_initializes_once(monkeypatch: pytest.MonkeyPatch):
+    import backend.rendering.audio as audio_mod
+
+    calls = {"init": 0}
+    monkeypatch.setattr("pygame.mixer.init", lambda **kwargs: calls.__setitem__("init", calls["init"] + 1))
+    audio_mod._mixer_initialized = False
+    _ensure_mixer()
+    _ensure_mixer()
+    assert calls["init"] == 1
+    audio_mod._mixer_initialized = False
+
+
+def test_play_audio_no_data(monkeypatch: pytest.MonkeyPatch):
+    calls = {"ensure": 0}
+    monkeypatch.setattr("backend.rendering.audio._ensure_mixer", lambda: calls.__setitem__("ensure", calls["ensure"] + 1))
+    play_audio(TtsResult(audio_data=b""))
+    assert calls["ensure"] == 0
+
+
+def test_play_audio_happy_path(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr("backend.rendering.audio._ensure_mixer", lambda: None)
+
+    class _Sound:
+        def get_length(self):
+            return 0.1
+
+        def play(self):
+            return None
+
+    monkeypatch.setattr("pygame.mixer.Sound", lambda *args, **kwargs: _Sound())
+    busy = iter([True, False])
+    monkeypatch.setattr("pygame.mixer.get_busy", lambda: next(busy))
+    monkeypatch.setattr("time.sleep", lambda *_: None)
+    play_audio(TtsResult(audio_data=b"abc"))
+
+
+def test_main_test_flag_runs_pytest(monkeypatch: pytest.MonkeyPatch):
+    import backend.main as main_mod
+    from backend.cli import Args
+
+    args = Args(
+        text=None,
+        audio=None,
+        file=None,
+        render=False,
+        test=True,
+        test_sprites=False,
+        test_animations=False,
+        log_level="INFO",
+        output=None,
+    )
+    monkeypatch.setattr("backend.main.parse_args", lambda: args)
+    monkeypatch.setattr("backend.main.setup_logging", lambda level: None)
+    monkeypatch.setattr("pytest.main", lambda argv: 7)
+    with pytest.raises(SystemExit) as exc:
+        main_mod.main()
+    assert exc.value.code == 7
+
+
+def test_main_test_sprites_branch(monkeypatch: pytest.MonkeyPatch):
+    import backend.main as main_mod
+    from backend.cli import Args
+
+    args = Args(
+        text=None,
+        audio=None,
+        file=None,
+        render=False,
+        test=False,
+        test_sprites=True,
+        test_animations=False,
+        log_level="INFO",
+        output=None,
+    )
+    calls = {"sprites": 0}
+    monkeypatch.setattr("backend.main.parse_args", lambda: args)
+    monkeypatch.setattr("backend.main.setup_logging", lambda level: None)
+    monkeypatch.setattr("backend.rendering.avatar.test_sprites", lambda: calls.__setitem__("sprites", calls["sprites"] + 1))
+    main_mod.main()
+    assert calls["sprites"] == 1
+
+
+def test_main_test_animations_branch(monkeypatch: pytest.MonkeyPatch):
+    import backend.main as main_mod
+    from backend.cli import Args
+
+    args = Args(
+        text=None,
+        audio=None,
+        file=None,
+        render=False,
+        test=False,
+        test_sprites=False,
+        test_animations=True,
+        log_level="INFO",
+        output=None,
+    )
+    calls = {"animations": 0}
+    monkeypatch.setattr("backend.main.parse_args", lambda: args)
+    monkeypatch.setattr("backend.main.setup_logging", lambda level: None)
+    monkeypatch.setattr(
+        "backend.rendering.avatar.test_animations",
+        lambda: calls.__setitem__("animations", calls["animations"] + 1),
+    )
+    main_mod.main()
+    assert calls["animations"] == 1
+
+
+def test_main_missing_settings_exits(monkeypatch: pytest.MonkeyPatch):
+    import backend.main as main_mod
+    from backend.cli import Args
+
+    args = Args(
+        text=None,
+        audio=None,
+        file=None,
+        render=False,
+        test=False,
+        test_sprites=False,
+        test_animations=False,
+        log_level="INFO",
+        output=None,
+    )
+    monkeypatch.setattr("backend.main.parse_args", lambda: args)
+    monkeypatch.setattr("backend.main.setup_logging", lambda level: None)
+    monkeypatch.setattr("backend.main.Settings.load", lambda: (_ for _ in ()).throw(KeyError("OPENAI_API_KEY")))
+    with pytest.raises(SystemExit) as exc:
+        main_mod.main()
+    assert exc.value.code == 1
+
+
+def test_main_constructs_pipeline_and_runs(monkeypatch: pytest.MonkeyPatch):
+    import backend.main as main_mod
+    from backend.cli import Args
+
+    args = Args(
+        text="hello",
+        audio=None,
+        file=None,
+        render=False,
+        test=False,
+        test_sprites=False,
+        test_animations=False,
+        log_level="INFO",
+        output=None,
+    )
+    calls = {"run": 0}
+    settings = types.SimpleNamespace(
+        openai_api_key="ok",
+        azure_speech_key="az",
+        azure_speech_region="eastus",
+        azure_voice_name="voice",
+    )
+    monkeypatch.setattr("backend.main.parse_args", lambda: args)
+    monkeypatch.setattr("backend.main.setup_logging", lambda level: None)
+    monkeypatch.setattr("backend.main.Settings.load", lambda: settings)
+    monkeypatch.setattr("backend.main.WhisperSttService", lambda api_key: object())
+    monkeypatch.setattr("backend.main.EchoLlmService", lambda: object())
+    monkeypatch.setattr("backend.main.AzureTtsService", lambda speech_key, speech_region, voice_name: object())
+
+    class _Pipeline:
+        def __init__(self, stt, llm, tts):
+            self.stt = stt
+            self.llm = llm
+            self.tts = tts
+
+        def run(self, arg_obj):
+            calls["run"] += 1
+            assert arg_obj is args
+
+    monkeypatch.setattr("backend.main.Pipeline", _Pipeline)
+    main_mod.main()
+    assert calls["run"] == 1
+
