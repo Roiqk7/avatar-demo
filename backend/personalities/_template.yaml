@@ -1,0 +1,33 @@
+# Copy to ``clientname.yaml`` (no leading underscore) and fill in.
+# Full reference: module docstring in backend/personalities/loader.py
+
+id: clientname
+display_name: Client Name
+window_title: Avatar Demo — Client Name
+
+voice:
+  azure_voice_name: en-US-AvaNeural
+
+llm:
+  system_prompt: |
+    You are a helpful assistant for [client]. Stay concise and on-brand.
+
+assets:
+  face: faces/your_base.png
+
+# Optional per-face layout (eye/mouth anchors); omit if the default fits your art.
+# face_layout:
+#   eye_y_ratio: 0.42
+#   eye_width_ratio: 0.58
+
+# Motion: calm | balanced | playful | wild (explicit preset/eye_preset override this)
+animation:
+  vibe: balanced
+
+# Mouth idle: none | minimal | standard | full — or omit and set idle_mouths tiers by hand
+idle_mouth_profile: standard
+
+mouth_idle_enabled: true
+
+emotes:
+  - grin

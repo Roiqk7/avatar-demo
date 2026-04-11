@@ -9,6 +9,7 @@ file keeps import paths stable:
 - `backend.rendering.avatar_controllers`: eye/mouth/emote state machines
 - `backend.rendering.avatar_test_sprites`: interactive sprite viewer
 - `backend.rendering.avatar_test_animations`: interactive animation viewer
+- `backend.rendering.avatar_test_personalities`: personality + voice demo (Azure TTS)
 
 This façade uses lazy attribute access so importing `backend.rendering.avatar`
 does not require `pygame` unless you actually access the rendering/test entrypoints.
@@ -25,6 +26,7 @@ __all__ = [
     "AvatarWindow",
     "render_avatar",
     "test_animations",
+    "test_personalities",
     "test_sprites",
 ]
 
@@ -46,4 +48,8 @@ def __getattr__(name: str) -> Any:  # pragma: no cover
         from backend.rendering.avatar_test_animations import test_animations
 
         return test_animations
+    if name == "test_personalities":
+        from backend.rendering.avatar_test_personalities import test_personalities
+
+        return test_personalities
     raise AttributeError(name)

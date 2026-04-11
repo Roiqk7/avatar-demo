@@ -8,23 +8,12 @@ import time
 os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
 import pygame
 
+from backend.personalities import load_personality
 from backend.rendering.avatar_assets import load_eyes, load_face, load_visemes
-from backend.rendering.avatar_config import (
-    ASSETS_DIR,
-    BG_COLOR,
-    EYE_HEIGHT_RATIO,
-    EYE_WIDTH_RATIO,
-    EYE_Y_RATIO,
-    MOUTH_HEIGHT_RATIO,
-    MOUTH_WIDTH_RATIO,
-    MOUTH_Y_RATIO,
-    VISEME_LABELS,
-    WINDOW_HEIGHT,
-    WINDOW_WIDTH,
-)
+from backend.rendering.avatar_config import BG_COLOR, WINDOW_HEIGHT, WINDOW_WIDTH
 
 
-def test_sprites() -> None:
+def test_sprites(personality_id: str = "peter") -> None:
     """Interactive sprite viewer: shows each eye and viseme overlaid on the face.
 
     Controls:
@@ -35,20 +24,31 @@ def test_sprites() -> None:
       Esc / Q       — quit
     """
 
+    personality = load_personality(personality_id)
+    ap = personality.assets
+    labels = personality.effective_viseme_labels
+    layout = personality.face_layout
+
     pygame.init()
     screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
-    pygame.display.set_caption("Sprite Test Viewer")
+    pygame.display.set_caption(f"Sprite Test — {personality.display_name}")
     clock = pygame.time.Clock()
 
     face_width: int = 530
-    mouth_max_w = int(face_width * MOUTH_WIDTH_RATIO)
-    mouth_max_h = int(face_width * MOUTH_HEIGHT_RATIO)
-    eye_max_w = int(face_width * EYE_WIDTH_RATIO)
-    eye_max_h = int(face_width * EYE_HEIGHT_RATIO)
+    mouth_max_w = int(face_width * layout.mouth_width_ratio)
+    mouth_max_h = int(face_width * layout.mouth_height_ratio)
+    eye_max_w = int(face_width * layout.eye_width_ratio)
+    eye_max_h = int(face_width * layout.eye_height_ratio)
 
-    face = load_face(face_width)
-    viseme_images = load_visemes(mouth_max_w, mouth_max_h)
-    eye_images = load_eyes(eye_max_w, eye_max_h)
+    face = load_face(ap.face_root, face_width, face_filename=ap.face_filename)
+    viseme_images = load_visemes(
+        ap.sprites_root,
+        mouth_max_w,
+        mouth_max_h,
+        visemes_dir=ap.visemes_dir,
+        labels=labels,
+    )
+    eye_images = load_eyes(ap.sprites_root, eye_max_w, eye_max_h, eyes_dir=ap.eyes_dir)
 
     if not face:
         print("ERROR: avatar-base.png not found")
@@ -57,7 +57,7 @@ def test_sprites() -> None:
 
     # Also load raw (un-trimmed, un-scaled) eyes for debug info.
     raw_eye_sizes: dict[int, tuple[int, int]] = {}
-    eyes_dir = ASSETS_DIR / "eyes"
+    eyes_dir = ap.sprites_root / ap.eyes_dir
     if eyes_dir.exists():
         for path in sorted(eyes_dir.glob("eye-*.png")):
             try:
@@ -70,7 +70,7 @@ def test_sprites() -> None:
     # Build a unified sprite list: (name, index, surface, kind).
     eye_list = [(f"eye-{i:02d}", i, eye_images[i], "eye") for i in sorted(eye_images)]
     vis_list = [
-        (f"vis-{i:02d}-{VISEME_LABELS[i]}", i, viseme_images[i], "viseme") for i in sorted(viseme_images)
+        (f"vis-{i:02d}-{labels[i]}", i, viseme_images[i], "viseme") for i in sorted(viseme_images)
     ]
 
     sprites = eye_list  # start with eyes
@@ -81,9 +81,9 @@ def test_sprites() -> None:
     face_x = (WINDOW_WIDTH - face.get_width()) // 2
     face_y = 60
     mouth_cx = face_x + face.get_width() // 2
-    mouth_cy = face_y + int(face.get_height() * MOUTH_Y_RATIO)
+    mouth_cy = face_y + int(face.get_height() * layout.mouth_y_ratio)
     eye_cx = face_x + face.get_width() // 2
-    eye_cy = face_y + int(face.get_height() * EYE_Y_RATIO)
+    eye_cy = face_y + int(face.get_height() * layout.eye_y_ratio)
 
     font = pygame.font.SysFont("monospace", 15)
     font_big = pygame.font.SysFont("monospace", 18, bold=True)

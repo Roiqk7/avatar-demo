@@ -13,8 +13,10 @@ class Args:
     test: bool
     test_sprites: bool
     test_animations: bool
+    test_personalities: bool
     log_level: str
     output: str | None
+    personality: str
 
 
 def parse_args() -> Args:
@@ -33,12 +35,24 @@ def parse_args() -> Args:
     parser.add_argument("--test-sprites", action="store_true", help="Open sprite test viewer (no pipeline needed)")
     parser.add_argument("--test-animations", action="store_true", help="Browse and play all animations (no pipeline needed)")
     parser.add_argument(
+        "--test-personalities",
+        action="store_true",
+        help="Avatar window: switch personalities, Space plays demo line (needs Azure env)",
+    )
+    parser.add_argument(
         "--log-level",
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         help="Logging verbosity (default: INFO)",
     )
     parser.add_argument("--output", type=str, help="Directory to save audio + viseme JSON")
+    parser.add_argument(
+        "--personality",
+        type=str,
+        default="peter",
+        metavar="ID",
+        help="Avatar persona (YAML in backend/personalities/), e.g. peter, ted, emma, trevor (default: peter)",
+    )
 
     ns = parser.parse_args()
     return Args(
@@ -49,6 +63,8 @@ def parse_args() -> Args:
         test=ns.test,
         test_sprites=ns.test_sprites,
         test_animations=ns.test_animations,
+        test_personalities=ns.test_personalities,
         log_level=ns.log_level,
         output=ns.output,
+        personality=str(ns.personality).strip().lower(),
     )

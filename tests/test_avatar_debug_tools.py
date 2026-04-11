@@ -19,28 +19,31 @@ def _patch_pygame_basics(monkeypatch: pytest.MonkeyPatch):
 def test_test_sprites_exits_when_face_missing(monkeypatch: pytest.MonkeyPatch):
     _patch_pygame_basics(monkeypatch)
     monkeypatch.setattr("pygame.display.set_mode", lambda size: pygame.Surface(size))
-    monkeypatch.setattr("backend.rendering.avatar_test_sprites.load_face", lambda face_width: None)
-    monkeypatch.setattr("backend.rendering.avatar_test_sprites.load_visemes", lambda w, h: {})
-    monkeypatch.setattr("backend.rendering.avatar_test_sprites.load_eyes", lambda w, h: {})
+    monkeypatch.setattr("backend.rendering.avatar_test_sprites.load_face", lambda *a, **k: None)
+    monkeypatch.setattr("backend.rendering.avatar_test_sprites.load_visemes", lambda *a, **k: {})
+    monkeypatch.setattr("backend.rendering.avatar_test_sprites.load_eyes", lambda *a, **k: {})
     run_sprite_viewer()
 
 
 def test_test_animations_exits_when_face_missing(monkeypatch: pytest.MonkeyPatch):
     _patch_pygame_basics(monkeypatch)
     monkeypatch.setattr("pygame.display.set_mode", lambda size: pygame.Surface(size))
-    monkeypatch.setattr("backend.rendering.avatar_test_animations.load_face", lambda face_width: None)
-    monkeypatch.setattr("backend.rendering.avatar_test_animations.load_visemes", lambda w, h: {})
-    monkeypatch.setattr("backend.rendering.avatar_test_animations.load_eyes", lambda w, h: {})
-    monkeypatch.setattr("backend.rendering.avatar_test_animations.load_idle_mouths", lambda w, h: {})
+    monkeypatch.setattr("backend.rendering.avatar_test_animations.load_face", lambda *a, **k: None)
+    monkeypatch.setattr("backend.rendering.avatar_test_animations.load_visemes", lambda *a, **k: {})
+    monkeypatch.setattr("backend.rendering.avatar_test_animations.load_eyes", lambda *a, **k: {})
+    monkeypatch.setattr("backend.rendering.avatar_test_animations.load_idle_mouths", lambda *a, **k: {})
     run_animation_viewer()
 
 
 def test_test_sprites_runs_single_quit_frame(monkeypatch: pytest.MonkeyPatch):
     _patch_pygame_basics(monkeypatch)
     monkeypatch.setattr("pygame.display.set_mode", lambda size: pygame.Surface(size))
-    monkeypatch.setattr("backend.rendering.avatar_test_sprites.load_face", lambda face_width: pygame.Surface((200, 200), pygame.SRCALPHA))
-    monkeypatch.setattr("backend.rendering.avatar_test_sprites.load_visemes", lambda w, h: {})
-    monkeypatch.setattr("backend.rendering.avatar_test_sprites.load_eyes", lambda w, h: {})
+    monkeypatch.setattr(
+        "backend.rendering.avatar_test_sprites.load_face",
+        lambda *a, **k: pygame.Surface((200, 200), pygame.SRCALPHA),
+    )
+    monkeypatch.setattr("backend.rendering.avatar_test_sprites.load_visemes", lambda *a, **k: {})
+    monkeypatch.setattr("backend.rendering.avatar_test_sprites.load_eyes", lambda *a, **k: {})
     monkeypatch.setattr("pygame.event.get", lambda: [types.SimpleNamespace(type=pygame.QUIT)])
     run_sprite_viewer()
 
@@ -48,9 +51,15 @@ def test_test_sprites_runs_single_quit_frame(monkeypatch: pytest.MonkeyPatch):
 def test_test_animations_runs_single_quit_frame(monkeypatch: pytest.MonkeyPatch):
     _patch_pygame_basics(monkeypatch)
     monkeypatch.setattr("pygame.display.set_mode", lambda size: pygame.Surface(size))
-    monkeypatch.setattr("backend.rendering.avatar_test_animations.load_face", lambda face_width: pygame.Surface((200, 200), pygame.SRCALPHA))
-    monkeypatch.setattr("backend.rendering.avatar_test_animations.load_visemes", lambda w, h: {0: pygame.Surface((10, 10), pygame.SRCALPHA)})
-    monkeypatch.setattr("backend.rendering.avatar_test_animations.load_eyes", lambda w, h: {})
-    monkeypatch.setattr("backend.rendering.avatar_test_animations.load_idle_mouths", lambda w, h: {})
+    monkeypatch.setattr(
+        "backend.rendering.avatar_test_animations.load_face",
+        lambda *a, **k: pygame.Surface((200, 200), pygame.SRCALPHA),
+    )
+    monkeypatch.setattr(
+        "backend.rendering.avatar_test_animations.load_visemes",
+        lambda *a, **k: {0: pygame.Surface((10, 10), pygame.SRCALPHA)},
+    )
+    monkeypatch.setattr("backend.rendering.avatar_test_animations.load_eyes", lambda *a, **k: {})
+    monkeypatch.setattr("backend.rendering.avatar_test_animations.load_idle_mouths", lambda *a, **k: {})
     monkeypatch.setattr("pygame.event.get", lambda: [types.SimpleNamespace(type=pygame.QUIT)])
     run_animation_viewer()

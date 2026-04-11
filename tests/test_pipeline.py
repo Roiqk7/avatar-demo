@@ -5,7 +5,10 @@ import pytest
 
 from backend.cli import Args
 from backend.models import LlmResult, PipelineResult, SttResult, TtsResult, VisemeEvent
+from backend.personalities import load_personality
 from backend.pipeline import Pipeline
+
+_PETER = load_personality("peter")
 
 
 class _Stt:
@@ -50,8 +53,10 @@ def _args(**overrides):
         test=False,
         test_sprites=False,
         test_animations=False,
+        test_personalities=False,
         log_level="INFO",
         output=None,
+        personality="peter",
     )
     base.update(overrides)
     return Args(**base)
@@ -158,9 +163,13 @@ def test_output_result_writes_files(tmp_path: Path):
 def test_interactive_dispatch_render(monkeypatch: pytest.MonkeyPatch):
     p = _pipeline()
     calls = {"render": 0, "text": 0}
-    monkeypatch.setattr(p, "_interactive_render", lambda args: calls.__setitem__("render", calls["render"] + 1))
+    monkeypatch.setattr(
+        p,
+        "_interactive_render",
+        lambda args, personality: calls.__setitem__("render", calls["render"] + 1),
+    )
     monkeypatch.setattr(p, "_interactive_text", lambda args: calls.__setitem__("text", calls["text"] + 1))
-    p._interactive(_args(render=True))
+    p._interactive(_args(render=True), _PETER)
     assert calls["render"] == 1
     assert calls["text"] == 0
 
@@ -168,9 +177,13 @@ def test_interactive_dispatch_render(monkeypatch: pytest.MonkeyPatch):
 def test_interactive_dispatch_text(monkeypatch: pytest.MonkeyPatch):
     p = _pipeline()
     calls = {"render": 0, "text": 0}
-    monkeypatch.setattr(p, "_interactive_render", lambda args: calls.__setitem__("render", calls["render"] + 1))
+    monkeypatch.setattr(
+        p,
+        "_interactive_render",
+        lambda args, personality: calls.__setitem__("render", calls["render"] + 1),
+    )
     monkeypatch.setattr(p, "_interactive_text", lambda args: calls.__setitem__("text", calls["text"] + 1))
-    p._interactive(_args(render=False))
+    p._interactive(_args(render=False), _PETER)
     assert calls["render"] == 0
     assert calls["text"] == 1
 
@@ -230,7 +243,7 @@ def test_run_dispatches_to_correct_processor(monkeypatch: pytest.MonkeyPatch, kw
     monkeypatch.setattr("backend.rendering.audio.play_audio", lambda tts: called.__setitem__("play", called["play"] + 1))
     monkeypatch.setattr(p, "_print_usage_report", lambda: None)
 
-    p.run(_args(**kwargs))
+    p.run(_args(**kwargs), _PETER)
     assert called[expected_method] == 1
     assert called["interactive"] == 0
 
@@ -238,9 +251,13 @@ def test_run_dispatches_to_correct_processor(monkeypatch: pytest.MonkeyPatch, kw
 def test_run_interactive_path(monkeypatch: pytest.MonkeyPatch):
     p = _pipeline()
     called = {"interactive": 0}
-    monkeypatch.setattr(p, "_interactive", lambda args: called.__setitem__("interactive", called["interactive"] + 1))
+    monkeypatch.setattr(
+        p,
+        "_interactive",
+        lambda args, personality: called.__setitem__("interactive", called["interactive"] + 1),
+    )
     monkeypatch.setattr(p, "_print_usage_report", lambda: None)
-    p.run(_args())
+    p.run(_args(), _PETER)
     assert called["interactive"] == 1
 
 
@@ -251,9 +268,12 @@ def test_run_text_renders_or_plays(monkeypatch: pytest.MonkeyPatch, render_enabl
     monkeypatch.setattr(p, "process_text", lambda text: sample)
     calls = {"play": 0, "render": 0}
     monkeypatch.setattr("backend.rendering.audio.play_audio", lambda tts: calls.__setitem__("play", calls["play"] + 1))
-    monkeypatch.setattr("backend.rendering.avatar.render_avatar", lambda result: calls.__setitem__("render", calls["render"] + 1))
+    monkeypatch.setattr(
+        "backend.rendering.avatar.render_avatar",
+        lambda result, personality: calls.__setitem__("render", calls["render"] + 1),
+    )
     monkeypatch.setattr(p, "_print_usage_report", lambda: None)
-    p.run(_args(text="x", render=render_enabled))
+    p.run(_args(text="x", render=render_enabled), _PETER)
     assert calls["render"] == (1 if render_enabled else 0)
     assert calls["play"] == (0 if render_enabled else 1)
 
@@ -269,7 +289,7 @@ def test_run_file_outputs_each_result(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(p, "_output_result", lambda result, args: out_calls.append(result.response_text))
     monkeypatch.setattr("backend.rendering.audio.play_audio", lambda tts: None)
     monkeypatch.setattr(p, "_print_usage_report", lambda: None)
-    p.run(_args(file="x.txt", render=False))
+    p.run(_args(file="x.txt", render=False), _PETER)
     assert out_calls == ["r1", "r2"]
 
 
@@ -278,10 +298,13 @@ def test_run_audio_with_render(monkeypatch: pytest.MonkeyPatch):
     sample = PipelineResult(user_text="u", response_text="r", tts=TtsResult(audio_data=b"a"))
     monkeypatch.setattr(p, "process_audio", lambda path: sample)
     calls = {"render": 0, "play": 0}
-    monkeypatch.setattr("backend.rendering.avatar.render_avatar", lambda result: calls.__setitem__("render", calls["render"] + 1))
+    monkeypatch.setattr(
+        "backend.rendering.avatar.render_avatar",
+        lambda result, personality: calls.__setitem__("render", calls["render"] + 1),
+    )
     monkeypatch.setattr("backend.rendering.audio.play_audio", lambda tts: calls.__setitem__("play", calls["play"] + 1))
     monkeypatch.setattr(p, "_print_usage_report", lambda: None)
-    p.run(_args(audio="audio.wav", render=True))
+    p.run(_args(audio="audio.wav", render=True), _PETER)
     assert calls == {"render": 1, "play": 0}
 
 
@@ -290,10 +313,13 @@ def test_run_file_with_render(monkeypatch: pytest.MonkeyPatch):
     results = [PipelineResult(user_text="u", response_text="r", tts=TtsResult(audio_data=b"a"))]
     monkeypatch.setattr(p, "process_file", lambda path: results)
     calls = {"render": 0, "play": 0}
-    monkeypatch.setattr("backend.rendering.avatar.render_avatar", lambda result: calls.__setitem__("render", calls["render"] + 1))
+    monkeypatch.setattr(
+        "backend.rendering.avatar.render_avatar",
+        lambda result, personality: calls.__setitem__("render", calls["render"] + 1),
+    )
     monkeypatch.setattr("backend.rendering.audio.play_audio", lambda tts: calls.__setitem__("play", calls["play"] + 1))
     monkeypatch.setattr(p, "_print_usage_report", lambda: None)
-    p.run(_args(file="lines.txt", render=True))
+    p.run(_args(file="lines.txt", render=True), _PETER)
     assert calls == {"render": 1, "play": 0}
 
 
@@ -304,9 +330,9 @@ def test_interactive_render_falls_back_when_window_not_ready(monkeypatch: pytest
     class _Window:
         ready = False
 
-    monkeypatch.setattr("backend.rendering.avatar.AvatarWindow", lambda: _Window())
+    monkeypatch.setattr("backend.rendering.avatar.AvatarWindow", lambda personality: _Window())
     monkeypatch.setattr(p, "_interactive_text", lambda args: calls.__setitem__("fallback", calls["fallback"] + 1))
-    p._interactive_render(_args(render=True))
+    p._interactive_render(_args(render=True), _PETER)
     assert calls["fallback"] == 1
 
 
@@ -337,12 +363,12 @@ def test_interactive_render_processes_input_and_closes(monkeypatch: pytest.Monke
             self._target()
 
     inputs = iter(["hello", "quit"])
-    monkeypatch.setattr("backend.rendering.avatar.AvatarWindow", lambda: _Window())
+    monkeypatch.setattr("backend.rendering.avatar.AvatarWindow", lambda personality: _Window())
     monkeypatch.setattr("threading.Thread", _ImmediateThread)
     monkeypatch.setattr("builtins.input", lambda _: next(inputs))
     monkeypatch.setattr(p, "process_text", lambda text: sample)
     monkeypatch.setattr(p, "_output_result", lambda result, args: None)
-    p._interactive_render(_args(render=True))
+    p._interactive_render(_args(render=True), _PETER)
     assert played_results == [sample]
     assert closed["value"] is True
 
@@ -374,10 +400,10 @@ def test_interactive_render_terminal_exception_still_closes(monkeypatch: pytest.
     def _raise(_):
         raise EOFError()
 
-    monkeypatch.setattr("backend.rendering.avatar.AvatarWindow", lambda: _Window())
+    monkeypatch.setattr("backend.rendering.avatar.AvatarWindow", lambda personality: _Window())
     monkeypatch.setattr("threading.Thread", _ImmediateThread)
     monkeypatch.setattr("builtins.input", _raise)
-    p._interactive_render(_args(render=True))
+    p._interactive_render(_args(render=True), _PETER)
     assert closed["value"] is True
 
 

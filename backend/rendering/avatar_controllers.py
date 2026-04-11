@@ -1,8 +1,7 @@
 """Avatar animation controllers (eyes, mouth, coordinated emotes).
 
-These classes are deliberately pure state machines: they do not load assets and
-do not perform any rendering. They only compute which sprite(s) should be shown
-and how to blend between them.
+State machines are pure logic (no asset loading, no drawing). Behaviour is
+driven by :mod:`backend.rendering.animation_config` and per-personality pools.
 """
 
 from __future__ import annotations
@@ -14,10 +13,17 @@ from dataclasses import dataclass
 os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
 import pygame
 
+from backend.rendering.animation_config import (
+    EmoteTimingConfig,
+    EyeAnimationConfig,
+    MouthIdlePools,
+    MouthTimingConfig,
+)
+from backend.rendering.emote_catalog import Emote
 from backend.rendering.avatar_utils import smoothstep
 
 # ---------------------------------------------------------------------------
-# Eye sequences
+# Eye sequences (for debugging / animation test viewer)
 # Each step: (eye_idx, transition_in_ms, hold_ms)
 # ---------------------------------------------------------------------------
 
@@ -102,6 +108,12 @@ _GOOFY_POOL: list[list[tuple[int, float, float]]] = [
 ]
 
 
+def _eye_seq_uses_forbidden(
+    seq: list[tuple[int, float, float]], forbidden: frozenset[int]
+) -> bool:
+    return bool(forbidden) and any(idx in forbidden for idx, _, _ in seq)
+
+
 @dataclass(frozen=True, slots=True)
 class Blend:
     """A simple cross-fade definition."""
@@ -112,18 +124,11 @@ class Blend:
 
 
 class EyeController:
-    """Smooth, independent eye animation.
+    """Smooth, independent eye animation driven by :class:`EyeAnimationConfig`."""
 
-    Four async routines fire on randomised timers:
-      blink     — regular + slow + double blinks, every ~2-4 s
-      micro     — very brief glances, every ~3-5 s (kills the stare-down)
-      glance    — longer look-aways, every ~6-14 s
-      goofy     — multi-step silly sequences, every ~24-48 s
-
-    All state changes cross-fade with smoothstep easing.
-    """
-
-    def __init__(self) -> None:
+    def __init__(self, cfg: EyeAnimationConfig) -> None:
+        self._cfg: EyeAnimationConfig = cfg
+        self.forbidden_eye_indices: frozenset[int] = cfg.forbidden_eye_indices
         self._current: int = 0
         self._prev: int = 0
         self._trans_start: float = 0.0
@@ -138,14 +143,19 @@ class EyeController:
         self._look_return_ms: float = 0.0
         self._looking_away: bool = False
 
-        # Staggered initial timers so nothing fires simultaneously.
-        self._next_blink_ms: float = random.uniform(1500, 3500)
-        self._next_micro_ms: float = random.uniform(2200, 5000)
-        self._next_glance_ms: float = random.uniform(6000, 12000)
-        self._next_expr_ms: float = random.uniform(12000, 24000)
-        self._next_goofy_ms: float = random.uniform(24000, 42000)
-
-    # ---- low-level transition primitives ---------------------------------
+        self._next_blink_ms: float = random.uniform(*cfg.blink_initial_ms)
+        self._next_micro_ms: float = (
+            random.uniform(*cfg.micro_initial_ms) if cfg.enable_micro_glance else float("inf")
+        )
+        self._next_glance_ms: float = (
+            random.uniform(*cfg.glance_initial_ms) if cfg.enable_long_glance else float("inf")
+        )
+        self._next_expr_ms: float = (
+            random.uniform(*cfg.expr_initial_ms) if cfg.enable_expr_glance else float("inf")
+        )
+        self._next_goofy_ms: float = (
+            random.uniform(*cfg.goofy_initial_ms) if cfg.enable_goofy_sequences else float("inf")
+        )
 
     def transition_to(self, idx: int, dur_ms: float, elapsed_ms: float) -> None:
         """Start a smooth cross-fade to a new eye state."""
@@ -170,8 +180,6 @@ class EyeController:
             self._in_trans = False
         return t
 
-    # ---- sequences --------------------------------------------------------
-
     def play_sequence(self, seq: list[tuple[int, float, float]], elapsed_ms: float) -> None:
         """Begin a discrete eye sequence (blink/spin/etc)."""
         self._seq = seq
@@ -195,10 +203,10 @@ class EyeController:
             self.transition_to(nidx, ntrans, elapsed_ms)
             self._seq_step_start = elapsed_ms
 
-    # ---- public API -------------------------------------------------------
-
     def get_blend(self, elapsed_ms: float) -> Blend:
         """Advance state machine and return current cross-fade blend."""
+        cfg = self._cfg
+
         if self._seq_active:
             self._advance_seq(elapsed_ms)
 
@@ -207,36 +215,45 @@ class EyeController:
             self.transition_to(0, 264.0, elapsed_ms)
 
         else:
-            # Priority: blink > micro-glance > glance > goofy.
             if elapsed_ms >= self._next_blink_ms:
                 seq = random.choices(
                     [s for s, _ in _BLINK_POOL],
                     weights=[w for _, w in _BLINK_POOL],
                 )[0]
                 self.play_sequence(seq, elapsed_ms)
-                self._next_blink_ms = elapsed_ms + random.uniform(1800, 4200)
+                self._next_blink_ms = elapsed_ms + random.uniform(*cfg.blink_after_ms)
 
-            elif elapsed_ms >= self._next_micro_ms:
-                self.transition_to(random.choice([1, 8, 10, 11]), 174.0, elapsed_ms)
+            elif (
+                cfg.enable_micro_glance
+                and cfg.micro_glance_indices
+                and elapsed_ms >= self._next_micro_ms
+            ):
+                self.transition_to(random.choice(cfg.micro_glance_indices), cfg.micro_transition_ms, elapsed_ms)
                 self._looking_away = True
-                self._look_return_ms = elapsed_ms + random.uniform(204, 444)
-                self._next_micro_ms = elapsed_ms + random.uniform(2800, 5800)
+                self._look_return_ms = elapsed_ms + random.uniform(*cfg.micro_return_ms)
+                self._next_micro_ms = elapsed_ms + random.uniform(*cfg.micro_after_ms)
 
-            elif elapsed_ms >= self._next_glance_ms:
-                self.transition_to(random.choice([1, 8, 11]), 288.0, elapsed_ms)
+            elif cfg.enable_long_glance and cfg.glance_indices and elapsed_ms >= self._next_glance_ms:
+                self.transition_to(random.choice(cfg.glance_indices), cfg.glance_transition_ms, elapsed_ms)
                 self._looking_away = True
-                self._look_return_ms = elapsed_ms + random.uniform(840, 1800)
-                self._next_glance_ms = elapsed_ms + random.uniform(6500, 15000)
+                self._look_return_ms = elapsed_ms + random.uniform(*cfg.glance_return_ms)
+                self._next_glance_ms = elapsed_ms + random.uniform(*cfg.glance_after_ms)
 
-            elif elapsed_ms >= self._next_expr_ms:
-                self.transition_to(random.choice([9, 12, 5, 7]), 336.0, elapsed_ms)
+            elif cfg.enable_expr_glance and cfg.expr_indices and elapsed_ms >= self._next_expr_ms:
+                self.transition_to(random.choice(cfg.expr_indices), cfg.expr_transition_ms, elapsed_ms)
                 self._looking_away = True
-                self._look_return_ms = elapsed_ms + random.uniform(1200, 3120)
-                self._next_expr_ms = elapsed_ms + random.uniform(14000, 30000)
+                self._look_return_ms = elapsed_ms + random.uniform(*cfg.expr_return_ms)
+                self._next_expr_ms = elapsed_ms + random.uniform(*cfg.expr_after_ms)
 
-            elif elapsed_ms >= self._next_goofy_ms:
-                self.play_sequence(random.choice(_GOOFY_POOL), elapsed_ms)
-                self._next_goofy_ms = elapsed_ms + random.uniform(25000, 50000)
+            elif cfg.enable_goofy_sequences and elapsed_ms >= self._next_goofy_ms:
+                goofy_ok = [
+                    s
+                    for s in _GOOFY_POOL
+                    if not _eye_seq_uses_forbidden(s, self.forbidden_eye_indices)
+                ]
+                if goofy_ok:
+                    self.play_sequence(random.choice(goofy_ok), elapsed_ms)
+                self._next_goofy_ms = elapsed_ms + random.uniform(*cfg.goofy_after_ms)
 
         t = self._t(elapsed_ms)
         return Blend(self._prev, self._current, t)
@@ -250,42 +267,31 @@ class EyeController:
         return "idle"
 
 
-# ---------------------------------------------------------------------------
-# Mouth controller
-# ---------------------------------------------------------------------------
-
-# Subtle idle expressions — appear frequently, short holds.
-_IDLE_MOUTH_SUBTLE: list[str] = ["on-side", "stunt", "stunt2"]
-# Happy idle — occasional smiles.
-_IDLE_MOUTH_HAPPY: list[str] = ["big-smile", "wide-smile"]
-# Rare goofy idle — tongue, laugh, etc.
-_IDLE_MOUTH_GOOFY: list[str] = ["tongue-out", "tongue-out2", "laugh", "laugh2", "laugh3"]
-# Very rare dramatic idle.
-_IDLE_MOUTH_DRAMATIC: list[str] = ["scream"]
-
-
 class MouthController:
     """Randomised idle mouth animations when the avatar is not speaking."""
 
-    IDLE_DELAY_MS: float = 3000.0  # start idle mouth after this much silence
-
-    def __init__(self) -> None:
-        # Current / previous sprite name (None = use speech viseme 0 / sil).
+    def __init__(
+        self,
+        pools: MouthIdlePools,
+        timing: MouthTimingConfig,
+        *,
+        idle_animation_enabled: bool = True,
+    ) -> None:
+        self._pools: MouthIdlePools = pools
+        self._timing: MouthTimingConfig = timing
+        self._idle_animation_enabled: bool = idle_animation_enabled
         self._current: str | None = None
         self._prev: str | None = None
         self._trans_start: float = 0.0
         self._trans_dur: float = 0.0
         self._in_trans: bool = False
 
-        # When the avatar stopped speaking (set externally).
         self._idle_since_ms: float = 0.0
         self._idle: bool = False
 
-        # Return-to-neutral timer.
         self._return_ms: float = 0.0
         self._holding: bool = False
 
-        # Randomised next-fire timers (offsets from idle start).
         self._next_subtle_ms: float = 0.0
         self._next_happy_ms: float = 0.0
         self._next_goofy_ms: float = 0.0
@@ -293,12 +299,11 @@ class MouthController:
         self._reset_timers(0.0)
 
     def _reset_timers(self, now_ms: float) -> None:
-        self._next_subtle_ms = now_ms + random.uniform(3000, 6000)
-        self._next_happy_ms = now_ms + random.uniform(8000, 16000)
-        self._next_goofy_ms = now_ms + random.uniform(20000, 40000)
-        self._next_dramatic_ms = now_ms + random.uniform(45000, 80000)
-
-    # ---- transition primitives --------------------------------------------
+        t = self._timing
+        self._next_subtle_ms = now_ms + random.uniform(*t.subtle_next_initial)
+        self._next_happy_ms = now_ms + random.uniform(*t.happy_next_initial)
+        self._next_goofy_ms = now_ms + random.uniform(*t.goofy_next_initial)
+        self._next_dramatic_ms = now_ms + random.uniform(*t.dramatic_next_initial)
 
     def transition_to(self, name: str | None, dur_ms: float, elapsed_ms: float) -> None:
         """Start a smooth cross-fade to a new mouth sprite name."""
@@ -323,8 +328,6 @@ class MouthController:
             self._in_trans = False
         return t
 
-    # ---- public API -------------------------------------------------------
-
     def notify_speaking(self) -> None:
         """Call when speech starts — resets idle state."""
         self._idle = False
@@ -338,7 +341,7 @@ class MouthController:
         if not self._idle:
             self._idle = True
             self._idle_since_ms = now_ms
-            self._reset_timers(now_ms + self.IDLE_DELAY_MS)
+            self._reset_timers(now_ms + self._timing.idle_delay_ms)
 
     def begin_hold(
         self,
@@ -358,140 +361,78 @@ class MouthController:
         elapsed_ms: float,
         available: dict[str, pygame.Surface],
     ) -> tuple[str | None, str | None, float]:
-        """Return (prev_name, current_name, blend_t).
-
-        None means "draw the default sil viseme". blend_t controls cross-fade
-        between prev and current sprite.
-        """
+        """Return (prev_name, current_name, blend_t). None means sil viseme."""
         if not self._idle:
             return None, None, 1.0
 
-        # Don't start idle animations until delay has passed.
-        if elapsed_ms - self._idle_since_ms < self.IDLE_DELAY_MS:
+        if not self._idle_animation_enabled:
             return None, None, 1.0
 
-        # Return to neutral after hold.
+        if elapsed_ms - self._idle_since_ms < self._timing.idle_delay_ms:
+            return None, None, 1.0
+
         if self._holding and elapsed_ms >= self._return_ms:
             self._holding = False
-            self.transition_to(None, 350.0, elapsed_ms)
+            self.transition_to(None, self._timing.return_transition_ms, elapsed_ms)
 
-        # Fire timers (priority: subtle > happy > goofy > dramatic).
+        tcfg = self._timing
+        pools = self._pools
+
         if not self._holding and not self._in_trans:
             if elapsed_ms >= self._next_subtle_ms:
-                pool = [n for n in _IDLE_MOUTH_SUBTLE if n in available]
+                pool = [n for n in pools.subtle if n in available]
                 if pool:
                     self.begin_hold(
                         random.choice(pool),
-                        transition_ms=300.0,
-                        hold_ms=random.uniform(1200, 3000),
+                        transition_ms=tcfg.subtle_transition_ms,
+                        hold_ms=random.uniform(*tcfg.subtle_hold_ms),
                         elapsed_ms=elapsed_ms,
                     )
-                self._next_subtle_ms = elapsed_ms + random.uniform(4000, 8000)
+                self._next_subtle_ms = elapsed_ms + random.uniform(*tcfg.subtle_next_after)
 
             elif elapsed_ms >= self._next_happy_ms:
-                pool = [n for n in _IDLE_MOUTH_HAPPY if n in available]
+                pool = [n for n in pools.happy if n in available]
                 if pool:
                     self.begin_hold(
                         random.choice(pool),
-                        transition_ms=350.0,
-                        hold_ms=random.uniform(2000, 4500),
+                        transition_ms=tcfg.happy_transition_ms,
+                        hold_ms=random.uniform(*tcfg.happy_hold_ms),
                         elapsed_ms=elapsed_ms,
                     )
-                self._next_happy_ms = elapsed_ms + random.uniform(10000, 20000)
+                self._next_happy_ms = elapsed_ms + random.uniform(*tcfg.happy_next_after)
 
             elif elapsed_ms >= self._next_goofy_ms:
-                pool = [n for n in _IDLE_MOUTH_GOOFY if n in available]
+                pool = [n for n in pools.goofy if n in available]
                 if pool:
                     self.begin_hold(
                         random.choice(pool),
-                        transition_ms=280.0,
-                        hold_ms=random.uniform(1500, 3500),
+                        transition_ms=tcfg.goofy_transition_ms,
+                        hold_ms=random.uniform(*tcfg.goofy_hold_ms),
                         elapsed_ms=elapsed_ms,
                     )
-                self._next_goofy_ms = elapsed_ms + random.uniform(22000, 45000)
+                self._next_goofy_ms = elapsed_ms + random.uniform(*tcfg.goofy_next_after)
 
             elif elapsed_ms >= self._next_dramatic_ms:
-                pool = [n for n in _IDLE_MOUTH_DRAMATIC if n in available]
+                pool = [n for n in pools.dramatic if n in available]
                 if pool:
                     self.begin_hold(
                         random.choice(pool),
-                        transition_ms=400.0,
-                        hold_ms=random.uniform(1800, 3500),
+                        transition_ms=tcfg.dramatic_transition_ms,
+                        hold_ms=random.uniform(*tcfg.dramatic_hold_ms),
                         elapsed_ms=elapsed_ms,
                     )
-                self._next_dramatic_ms = elapsed_ms + random.uniform(50000, 90000)
+                self._next_dramatic_ms = elapsed_ms + random.uniform(*tcfg.dramatic_next_after)
 
         t = self._t(elapsed_ms)
         return self._prev, self._current, t
 
 
-# ---------------------------------------------------------------------------
-# Coordinated emotes (eye + mouth together)
-# ---------------------------------------------------------------------------
-
-
-@dataclass(frozen=True, slots=True)
-class Emote:
-    """A full-face emote: paired eye sequence + mouth sprite."""
-
-    name: str
-    eye_seq: list[tuple[int, float, float]]
-    mouth: str
-    mouth_hold_ms: float
-
-
-EMOTES: list[Emote] = [
-    Emote(
-        name="grin",
-        eye_seq=[(9, 250, 0)],  # squinting
-        mouth="wide-smile",
-        mouth_hold_ms=2800,
-    ),
-    Emote(
-        name="laugh",
-        eye_seq=[(3, 120, 80), (4, 100, 400), (3, 100, 80), (4, 100, 500), (0, 180, 0)],
-        mouth="laugh2",
-        mouth_hold_ms=2200,
-    ),
-    Emote(
-        name="cheeky",
-        eye_seq=[(11, 220, 0)],  # side glance
-        mouth="tongue-out",
-        mouth_hold_ms=2500,
-    ),
-    Emote(
-        name="shocked",
-        eye_seq=[(2, 180, 0)],  # open large pupils
-        mouth="scream",
-        mouth_hold_ms=2200,
-    ),
-    Emote(
-        name="smug",
-        eye_seq=[(5, 280, 0)],  # sleepy asymmetric
-        mouth="on-side",
-        mouth_hold_ms=3000,
-    ),
-    Emote(
-        name="derp",
-        eye_seq=[(13, 200, 600), (4, 80, 100), (13, 150, 400), (0, 220, 0)],
-        mouth="tongue-out2",
-        mouth_hold_ms=2000,
-    ),
-    Emote(
-        name="hysterical",
-        eye_seq=[(2, 90, 70), (14, 90, 70), (2, 90, 70), (14, 90, 70), (9, 180, 400), (0, 200, 0)],
-        mouth="laugh3",
-        mouth_hold_ms=2400,
-    ),
-]
-
-
 class EmoteController:
     """Fires coordinated eye+mouth emotes on a random timer during idle."""
 
-    IDLE_DELAY_MS: float = 5000.0  # wait this long after idle starts
-
-    def __init__(self) -> None:
+    def __init__(self, emotes: list[Emote], timing: EmoteTimingConfig) -> None:
+        self._emotes: list[Emote] = emotes
+        self._timing: EmoteTimingConfig = timing
         self._idle: bool = False
         self._idle_since_ms: float = 0.0
         self._next_emote_ms: float = 0.0
@@ -505,10 +446,14 @@ class EmoteController:
         self._emote = None
 
     def notify_idle(self, now_ms: float) -> None:
+        if not self._timing.enabled or not self._emotes:
+            return
         if not self._idle:
             self._idle = True
             self._idle_since_ms = now_ms
-            self._next_emote_ms = now_ms + self.IDLE_DELAY_MS + random.uniform(8000, 18000)
+            self._next_emote_ms = now_ms + self._timing.idle_delay_ms + random.uniform(
+                *self._timing.first_emote_after_ms
+            )
 
     def update(
         self,
@@ -518,18 +463,16 @@ class EmoteController:
         mouth_ctrl: MouthController,
         available_mouths: dict[str, pygame.Surface],
     ) -> bool:
-        """Tick the emote controller. Returns True if an emote is active.
+        """Tick the emote controller. Returns True if an emote is active."""
+        if not self._timing.enabled or not self._emotes:
+            return False
 
-        When active, the caller should skip independent eye/mouth updates
-        (the emote drives both).
-        """
         if not self._idle:
             return False
 
-        if elapsed_ms - self._idle_since_ms < self.IDLE_DELAY_MS:
+        if elapsed_ms - self._idle_since_ms < self._timing.idle_delay_ms:
             return False
 
-        # If an emote is playing, check if it's done.
         if self._active and self._emote:
             total_eye_ms = sum(t + h for _, t, h in self._emote.eye_seq)
             emote_dur = max(total_eye_ms, self._emote.mouth_hold_ms)
@@ -538,13 +481,17 @@ class EmoteController:
                 self._emote = None
                 eye_ctrl.transition_to(0, 250.0, elapsed_ms)
                 mouth_ctrl.transition_to(None, 350.0, elapsed_ms)
-                self._next_emote_ms = elapsed_ms + random.uniform(15000, 35000)
+                self._next_emote_ms = elapsed_ms + random.uniform(*self._timing.emote_after_ms)
                 return False
             return True
 
-        # Fire next emote?
         if elapsed_ms >= self._next_emote_ms:
-            pool = [e for e in EMOTES if e.mouth in available_mouths]
+            forbidden = eye_ctrl.forbidden_eye_indices
+            pool = [
+                e
+                for e in self._emotes
+                if e.mouth in available_mouths and not _eye_seq_uses_forbidden(e.eye_seq, forbidden)
+            ]
             if pool:
                 emote = random.choice(pool)
                 self._emote = emote
@@ -559,6 +506,6 @@ class EmoteController:
                 )
                 return True
 
-            self._next_emote_ms = elapsed_ms + random.uniform(15000, 35000)
+            self._next_emote_ms = elapsed_ms + random.uniform(*self._timing.emote_after_ms)
 
         return False
