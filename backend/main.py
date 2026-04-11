@@ -8,8 +8,9 @@ from backend.cli import parse_args
 from backend.config import Settings
 from backend.log import setup_logging
 from backend.personalities import load_personality
+from backend.personalities.llm_baseline import compose_llm_system_prompt
 from backend.pipeline import Pipeline
-from backend.services.llm import EchoLlmService
+from backend.services.llm import EchoLlmService, OpenAiChatLlmService
 from backend.services.stt import WhisperSttService
 from backend.services.tts import AzureTtsService
 
@@ -58,11 +59,22 @@ def main() -> None:
     logger.info("Personality: %s (%s)", personality.id, personality.display_name)
 
     voice_name = personality.azure_voice_name or settings.azure_voice_name
-    system_prompt = personality.llm_system_prompt or settings.llm_system_prompt
+    prompt_body = (personality.llm_system_prompt or settings.llm_system_prompt).strip()
+    system_prompt = compose_llm_system_prompt(prompt_body)
 
     # Assemble services — swap implementations here
     stt = WhisperSttService(api_key=settings.openai_api_key)
-    llm = EchoLlmService(system_prompt=system_prompt)
+    if args.llm_backend == "echo":
+        logger.info("LLM backend: ECHO (input is repeated; no Chat Completions call)")
+        llm = EchoLlmService(system_prompt=system_prompt)
+    else:
+        logger.info("LLM backend: OPENAI (model=%s)", settings.llm_model)
+        llm = OpenAiChatLlmService(
+            api_key=settings.openai_api_key,
+            system_prompt=system_prompt,
+            model=settings.llm_model,
+            max_completion_tokens=settings.llm_max_completion_tokens,
+        )
     tts = AzureTtsService(
         speech_key=settings.azure_speech_key,
         speech_region=settings.azure_speech_region,

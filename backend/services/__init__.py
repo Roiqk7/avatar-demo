@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from backend.models import LlmResult, SttResult, TtsResult
+from backend.models import ChatTurn, LlmResult, SttResult, TtsResult
 
 
 class SttService(Protocol):
@@ -12,7 +12,7 @@ class SttService(Protocol):
 class LlmService(Protocol):
     """LLM interface. Swap implementations without touching the pipeline."""
 
-    def generate(self, user_text: str) -> LlmResult: ...
+    def generate(self, user_text: str, *, history: list[ChatTurn] | None = None) -> LlmResult: ...
 
 
 class TtsService(Protocol):

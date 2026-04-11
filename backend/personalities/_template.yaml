@@ -9,8 +9,11 @@ voice:
   azure_voice_name: en-US-AvaNeural
 
 llm:
+  # Body only — shared Signosoft header + safety footer are added automatically in main.
   system_prompt: |
-    You are a helpful assistant for [client]. Stay concise and on-brand.
+    You are an original demo persona for [client], not an impersonation of any real
+    person or fictional character. [Describe tone in one short paragraph—e.g. warm
+    expert, playful guide, calm closer.]
 
 assets:
   face: faces/your_base.png

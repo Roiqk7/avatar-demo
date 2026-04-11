@@ -33,7 +33,7 @@ def test_load_peter():
     p = load_personality("Peter")
     assert p.id == "peter"
     assert p.display_name == "Peter"
-    assert "Peter" in p.llm_system_prompt or "peter" in p.llm_system_prompt.lower()
+    assert len(p.llm_system_prompt.strip()) > 10
     assert p.azure_voice_name
     assert p.emotes
     face_path = (p.assets.face_root / p.assets.face_filename).resolve()

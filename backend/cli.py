@@ -17,6 +17,7 @@ class Args:
     log_level: str
     output: str | None
     personality: str
+    llm_backend: str
 
 
 def parse_args() -> Args:
@@ -53,8 +54,16 @@ def parse_args() -> Args:
         metavar="ID",
         help="Avatar persona (YAML in backend/personalities/), e.g. peter, ted, emma, trevor (default: peter)",
     )
+    parser.add_argument(
+        "--llm",
+        default="ECHO",
+        choices=["ECHO", "OPENAI"],
+        help="LLM backend: ECHO repeats input (no API cost); OPENAI uses Chat Completions (default: ECHO)",
+    )
 
     ns = parser.parse_args()
+    llm_norm: str = str(ns.llm).strip().upper()
+    llm_backend: str = "openai" if llm_norm == "OPENAI" else "echo"
     return Args(
         text=ns.text,
         audio=ns.audio,
@@ -67,4 +76,5 @@ def parse_args() -> Args:
         log_level=ns.log_level,
         output=ns.output,
         personality=str(ns.personality).strip().lower(),
+        llm_backend=llm_backend,
     )

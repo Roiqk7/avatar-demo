@@ -24,10 +24,10 @@ class _Stt:
 class _Llm:
     def __init__(self, result: LlmResult):
         self.result = result
-        self.calls = []
+        self.calls: list[tuple[str, list | None]] = []
 
-    def generate(self, user_text: str) -> LlmResult:
-        self.calls.append(user_text)
+    def generate(self, user_text: str, *, history=None) -> LlmResult:
+        self.calls.append((user_text, history))
         return self.result
 
 
@@ -57,6 +57,7 @@ def _args(**overrides):
         log_level="INFO",
         output=None,
         personality="peter",
+        llm_backend="echo",
     )
     base.update(overrides)
     return Args(**base)
@@ -99,6 +100,32 @@ def test_process_text_happy_path():
     assert result.tts.characters_synthesized == 12
     assert p._usage.call_count == 1
     assert p._usage.tts_characters == 12
+
+
+def test_process_text_passes_chat_history_to_llm():
+    p = _pipeline()
+    p.process_text("first")
+    p.process_text("second")
+    assert p._llm.calls[0] == ("first", [])
+    assert p._llm.calls[1][0] == "second"
+    assert p._llm.calls[1][1] == [
+        {"role": "user", "content": "first"},
+        {"role": "assistant", "content": "llm-response"},
+    ]
+
+
+def test_process_text_trims_history_to_last_three_turns():
+    p = _pipeline()
+    for k in range(4):
+        p.process_text(f"m{k}")
+    assert len(p._llm.calls[3][1]) == 6
+    assert p._llm.calls[3][1][0] == {"role": "user", "content": "m0"}
+
+    p.process_text("m4")
+    h = p._llm.calls[4][1]
+    assert len(h) == 6
+    assert h[0] == {"role": "user", "content": "m1"}
+    assert h[-2] == {"role": "user", "content": "m3"}
 
 
 def test_process_audio_file_not_found():
@@ -442,5 +469,5 @@ def test_print_usage_report_zero_llm_tokens_branch(monkeypatch: pytest.MonkeyPat
     logs = []
     monkeypatch.setattr("backend.pipeline.logger.info", lambda msg, *args: logs.append(msg % args if args else msg))
     p._print_usage_report()
-    assert any("echo, no API calls" in msg for msg in logs)
+    assert any("no token usage recorded" in msg for msg in logs)
 

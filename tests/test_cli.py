@@ -21,6 +21,19 @@ def test_parse_defaults(monkeypatch: pytest.MonkeyPatch):
     assert args.log_level == "INFO"
     assert args.output is None
     assert args.personality == "peter"
+    assert args.llm_backend == "echo"
+
+
+@pytest.mark.parametrize(
+    ("argv_llm", "expected"),
+    [
+        (["--llm", "ECHO"], "echo"),
+        (["--llm", "OPENAI"], "openai"),
+    ],
+)
+def test_parse_llm_backend(monkeypatch: pytest.MonkeyPatch, argv_llm: list[str], expected: str):
+    args = _parse(monkeypatch, argv_llm)
+    assert args.llm_backend == expected
 
 
 @pytest.mark.parametrize(
@@ -105,6 +118,7 @@ def test_parse_combined_flags(monkeypatch: pytest.MonkeyPatch):
     assert args.log_level == "DEBUG"
     assert args.output == "tmp"
     assert args.personality == "trevor"
+    assert args.llm_backend == "echo"
 
 
 @pytest.mark.parametrize(

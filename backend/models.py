@@ -1,4 +1,12 @@
 from dataclasses import dataclass, field
+from typing import Literal, TypedDict
+
+
+class ChatTurn(TypedDict):
+    """One message in multi-turn chat (OpenAI-style roles)."""
+
+    role: Literal["user", "assistant"]
+    content: str
 
 
 @dataclass(frozen=True)

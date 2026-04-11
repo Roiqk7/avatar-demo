@@ -4,7 +4,7 @@ Quick checklist for a new client avatar (copy ``_template.yaml``)::
 
     id, display_name, window_title (optional)
     voice.azure_voice_name
-    llm.system_prompt
+    llm.system_prompt  (body only; shared header/footer added at runtime in main)
     assets.face  — path under assets/, e.g. faces/my_base.png
 
 Motion (pick one style)::

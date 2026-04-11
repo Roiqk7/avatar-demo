@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import pytest
 
 from backend.models import LlmResult
-from backend.services.llm import EchoLlmService
+from backend.services.llm import EchoLlmService, OpenAiChatLlmService
 from backend.services.stt import WhisperSttService
 from backend.services.tts import AZURE_TICKS_PER_MS, AzureTtsService
 
@@ -30,6 +30,127 @@ def test_echo_llm_returns_input():
     assert result.response == "hello"
     assert result.prompt_tokens == 0
     assert result.completion_tokens == 0
+
+
+def test_openai_llm_empty_user_skips_api():
+    service = OpenAiChatLlmService.__new__(OpenAiChatLlmService)
+    service._client = object()  # would fail if used
+    result = service.generate("   ")
+    assert result.response == ""
+    assert result.prompt_tokens == 0
+    assert result.completion_tokens == 0
+
+
+def test_openai_llm_uses_system_and_user_messages(monkeypatch: pytest.MonkeyPatch):
+    """Mocks OpenAI; keep strings tiny so accidental real calls would burn minimal tokens."""
+    calls: list[dict] = []
+
+    class _FakeMessage:
+        content = " r "
+
+    class _FakeChoice:
+        message = _FakeMessage()
+        finish_reason = "stop"
+
+    class _FakeUsage:
+        prompt_tokens = 2
+        completion_tokens = 1
+
+    class _FakeCompletions:
+        def create(self, **kwargs):
+            calls.append(kwargs)
+            return types.SimpleNamespace(
+                choices=[_FakeChoice()],
+                usage=_FakeUsage(),
+            )
+
+    class _FakeChat:
+        completions = _FakeCompletions()
+
+    def _fake_openai(api_key: str):
+        return types.SimpleNamespace(chat=_FakeChat())
+
+    monkeypatch.setattr("backend.services.llm.OpenAI", _fake_openai)
+    svc = OpenAiChatLlmService(
+        api_key="k",
+        system_prompt="S",
+        model="gpt-4o-mini",
+        max_completion_tokens=8,
+    )
+    result = svc.generate("u")
+    assert result.response == "r"
+    assert result.prompt_tokens == 2
+    assert result.completion_tokens == 1
+    assert len(calls) == 1
+    assert calls[0]["model"] == "gpt-4o-mini"
+    assert calls[0]["max_completion_tokens"] == 8
+    assert calls[0]["messages"] == [
+        {"role": "system", "content": "S"},
+        {"role": "user", "content": "u"},
+    ]
+
+
+def test_openai_llm_injects_prior_turns_before_user_message(monkeypatch: pytest.MonkeyPatch):
+    calls: list[dict] = []
+
+    class _FakeMessage:
+        content = "ok"
+
+    class _FakeChoice:
+        message = _FakeMessage()
+        finish_reason = "stop"
+
+    class _FakeCompletions:
+        def create(self, **kwargs):
+            calls.append(kwargs)
+            return types.SimpleNamespace(
+                choices=[_FakeChoice()],
+                usage=types.SimpleNamespace(prompt_tokens=1, completion_tokens=1),
+            )
+
+    class _FakeChat:
+        completions = _FakeCompletions()
+
+    monkeypatch.setattr("backend.services.llm.OpenAI", lambda api_key: types.SimpleNamespace(chat=_FakeChat()))
+    svc = OpenAiChatLlmService(api_key="k", system_prompt="SYS", model="m")
+    history = [
+        {"role": "user", "content": "a"},
+        {"role": "assistant", "content": "b"},
+    ]
+    svc.generate("c", history=history)
+    assert calls[0]["messages"] == [
+        {"role": "system", "content": "SYS"},
+        {"role": "user", "content": "a"},
+        {"role": "assistant", "content": "b"},
+        {"role": "user", "content": "c"},
+    ]
+
+
+def test_openai_llm_blank_system_prompt_falls_back(monkeypatch: pytest.MonkeyPatch):
+    class _FakeMessage:
+        content = "ok"
+
+    class _FakeChoice:
+        message = _FakeMessage()
+        finish_reason = "stop"
+
+    class _FakeCompletions:
+        def create(self, **kwargs):
+            assert kwargs["messages"][0]["content"] == "You are a helpful assistant."
+            return types.SimpleNamespace(
+                choices=[_FakeChoice()],
+                usage=types.SimpleNamespace(prompt_tokens=1, completion_tokens=1),
+            )
+
+    class _FakeChat:
+        completions = _FakeCompletions()
+
+    monkeypatch.setattr(
+        "backend.services.llm.OpenAI",
+        lambda api_key: types.SimpleNamespace(chat=_FakeChat()),
+    )
+    svc = OpenAiChatLlmService(api_key="k", system_prompt="  ", model="m")
+    svc.generate("u")
 
 
 class _FakeTranscriptions:

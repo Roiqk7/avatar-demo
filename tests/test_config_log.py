@@ -19,6 +19,20 @@ def test_settings_load_reads_required(monkeypatch: pytest.MonkeyPatch):
     assert settings.azure_speech_region == "westus"
     assert settings.azure_voice_name == "voice"
     assert settings.llm_system_prompt == "prompt"
+    assert settings.llm_model == "gpt-4o-mini"
+    assert settings.llm_max_completion_tokens == 512
+
+
+def test_settings_load_llm_env_overrides(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr("backend.config.load_dotenv", lambda: None)
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
+    monkeypatch.setenv("AZURE_SPEECH_KEY", "azure-key")
+    monkeypatch.setenv("LLM_MODEL", "gpt-4o")
+    monkeypatch.setenv("LLM_MAX_COMPLETION_TOKENS", "256")
+
+    settings = Settings.load()
+    assert settings.llm_model == "gpt-4o"
+    assert settings.llm_max_completion_tokens == 256
 
 
 def test_settings_load_defaults(monkeypatch: pytest.MonkeyPatch):
@@ -32,7 +46,11 @@ def test_settings_load_defaults(monkeypatch: pytest.MonkeyPatch):
     settings = Settings.load()
     assert settings.azure_speech_region == "eastus"
     assert settings.azure_voice_name == "en-US-JennyNeural"
-    assert settings.llm_system_prompt == "You are a helpful assistant."
+    from backend.config import _DEFAULT_LLM_SYSTEM_PROMPT
+
+    assert settings.llm_system_prompt == _DEFAULT_LLM_SYSTEM_PROMPT
+    assert settings.llm_model == "gpt-4o-mini"
+    assert settings.llm_max_completion_tokens == 512
 
 
 @pytest.mark.parametrize("missing", ["OPENAI_API_KEY", "AZURE_SPEECH_KEY"])

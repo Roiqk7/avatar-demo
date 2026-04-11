@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 from backend.cli import Args
-from backend.models import PipelineResult, SessionUsage, TtsResult
+from backend.models import ChatTurn, PipelineResult, SessionUsage, TtsResult
 from backend.personalities import Personality
 from backend.services import LlmService, SttService, TtsService
 
@@ -15,6 +15,9 @@ _AZURE_TTS_COST_PER_CHAR: float = 16.0 / 1_000_000
 
 logger: logging.Logger = logging.getLogger("backend.pipeline")
 
+# User + assistant pairs kept for Chat Completions context (older turns dropped).
+_LLM_HISTORY_MAX_TURNS: int = 3
+
 
 class Pipeline:
     """Orchestrates: input -> STT -> LLM -> TTS, then hands off to rendering."""
@@ -24,6 +27,17 @@ class Pipeline:
         self._llm: LlmService = llm
         self._tts: TtsService = tts
         self._usage: SessionUsage = SessionUsage()
+        self._chat_history: list[ChatTurn] = []
+
+    def _append_chat_turn(self, user_text: str, assistant_text: str) -> None:
+        """Record a turn and keep at most the last ``_LLM_HISTORY_MAX_TURNS`` pairs."""
+        u: ChatTurn = {"role": "user", "content": user_text}
+        a: ChatTurn = {"role": "assistant", "content": assistant_text}
+        self._chat_history.append(u)
+        self._chat_history.append(a)
+        max_len: int = _LLM_HISTORY_MAX_TURNS * 2
+        if len(self._chat_history) > max_len:
+            self._chat_history = self._chat_history[-max_len:]
 
     def _safe_synthesize(self, text: str) -> TtsResult:
         """Run TTS, returning empty result on failure so the pipeline continues."""
@@ -39,9 +53,14 @@ class Pipeline:
     def process_text(self, text: str) -> PipelineResult:
         """Run the full pipeline from text input (skipping STT)."""
         logger.info("[STT] Skipped (text input)")
-        llm_result = self._llm.generate(text)
+        user_stripped: str = text.strip()
+        hist: list[ChatTurn] = list(self._chat_history)
+        llm_result = self._llm.generate(user_stripped, history=hist)
         logger.info('[LLM] OK — "%s"', llm_result.response[:80])
         tts_result = self._safe_synthesize(llm_result.response)
+
+        if user_stripped:
+            self._append_chat_turn(user_stripped, llm_result.response)
 
         result = PipelineResult(
             user_text=text,
@@ -66,9 +85,14 @@ class Pipeline:
 
         stt_result = self._stt.transcribe(audio_data, audio_format)
         logger.info('[STT] OK — "%s"', stt_result.text[:80])
-        llm_result = self._llm.generate(stt_result.text)
+        spoken: str = stt_result.text.strip()
+        hist: list[ChatTurn] = list(self._chat_history)
+        llm_result = self._llm.generate(spoken, history=hist)
         logger.info('[LLM] OK — "%s"', llm_result.response[:80])
         tts_result = self._safe_synthesize(llm_result.response)
+
+        if spoken:
+            self._append_chat_turn(spoken, llm_result.response)
 
         result = PipelineResult(
             user_text=stt_result.text,
@@ -230,7 +254,7 @@ class Pipeline:
                 llm_total_tokens, 0.0, u.llm_prompt_tokens, u.llm_completion_tokens,
             )
         else:
-            logger.info("LLM  — (echo, no API calls)")
+            logger.info("LLM  — (no token usage recorded)")
         logger.info("TTS  %7d chars   ~$%.4f", u.tts_characters, tts_cost)
         logger.info("Total                ~$%.4f", total_cost)
         logger.info("Note: costs are estimates based on standard pricing and may not reflect your actual billing (e.g. free tier).")
