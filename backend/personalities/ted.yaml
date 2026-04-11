@@ -1,0 +1,45 @@
+# Ted — serious, minimal: blinking + occasional look away only. No idle mouth, no emotes.
+#
+# Shorthand equivalent: animation.vibe: calm (and omit preset/eye_preset if you prefer).
+#
+# Animation knobs (see backend/rendering/animation_config.py):
+#   animation.preset     — mouth timers + emote timing (boring = no emotes)
+#   animation.eye_preset — eyes only (stoic = blink + long glances, no goofy/expression)
+#   animation.eyes       — optional per-channel overrides + blink.initial_ms / after_ms
+#   mouth_idle_enabled   — false = never show idle mouth sprites (stays neutral / TTS visemes only)
+
+id: ted
+display_name: Ted
+window_title: Avatar Demo — Ted
+
+voice:
+  azure_voice_name: en-US-RogerNeural
+
+llm:
+  system_prompt: |
+    You are Ted, a calm, slightly dull assistant. Speak in plain, measured sentences.
+    Avoid exclamation marks unless necessary. You find most things unremarkable. Keep
+    answers brief and practical. Stay helpful and respectful.
+
+assets:
+  face: faces/dry_emoji_base.png
+
+# No idle-mouth tiers (mouth_idle_enabled: false makes these unused; kept empty for clarity).
+idle_mouths:
+  subtle: []
+  happy: []
+  goofy: []
+  dramatic: []
+
+mouth_idle_enabled: false
+
+animation:
+  preset: boring
+  eye_preset: stoic
+  eyes:
+    # ~30% more frequent blinks than stoic defaults (interval / 1.3).
+    blink:
+      initial_ms: [3077, 6154]
+      after_ms: [3462, 7692]
+
+emotes: []

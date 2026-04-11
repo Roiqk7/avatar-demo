@@ -8,23 +8,14 @@ import time
 os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
 import pygame
 
+from backend.personalities import load_personality
 from backend.rendering.avatar_assets import load_eyes, load_face, load_idle_mouths, load_visemes
-from backend.rendering.avatar_config import (
-    BG_COLOR,
-    EYE_HEIGHT_RATIO,
-    EYE_WIDTH_RATIO,
-    EYE_Y_RATIO,
-    MOUTH_HEIGHT_RATIO,
-    MOUTH_WIDTH_RATIO,
-    MOUTH_Y_RATIO,
-    WINDOW_HEIGHT,
-    WINDOW_WIDTH,
-)
-from backend.rendering.avatar_controllers import EYE_SEQUENCE_CATALOG, EMOTES
+from backend.rendering.avatar_config import BG_COLOR, WINDOW_HEIGHT, WINDOW_WIDTH
+from backend.rendering.avatar_controllers import EYE_SEQUENCE_CATALOG
 from backend.rendering.avatar_utils import blit_centered, smoothstep
 
 
-def test_animations() -> None:
+def test_animations(personality_id: str = "peter") -> None:
     """Interactive animation browser: play eye sequences, idle mouths, and emotes.
 
     Controls:
@@ -38,21 +29,39 @@ def test_animations() -> None:
     user-triggered animations play.
     """
 
+    personality = load_personality(personality_id)
+    ap = personality.assets
+    labels = personality.effective_viseme_labels
+    layout = personality.face_layout
+
     pygame.init()
     screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
-    pygame.display.set_caption("Animation Test Viewer")
+    pygame.display.set_caption(f"Animation Test — {personality.display_name}")
     clock = pygame.time.Clock()
 
     face_width: int = 530
-    mouth_max_w = int(face_width * MOUTH_WIDTH_RATIO)
-    mouth_max_h = int(face_width * MOUTH_HEIGHT_RATIO)
-    eye_max_w = int(face_width * EYE_WIDTH_RATIO)
-    eye_max_h = int(face_width * EYE_HEIGHT_RATIO)
+    mouth_max_w = int(face_width * layout.mouth_width_ratio)
+    mouth_max_h = int(face_width * layout.mouth_height_ratio)
+    eye_max_w = int(face_width * layout.eye_width_ratio)
+    eye_max_h = int(face_width * layout.eye_height_ratio)
 
-    face = load_face(face_width)
-    viseme_images = load_visemes(mouth_max_w, mouth_max_h)
-    eye_images = load_eyes(eye_max_w, eye_max_h)
-    idle_mouth_images = load_idle_mouths(mouth_max_w, mouth_max_h)
+    face = load_face(ap.face_root, face_width, face_filename=ap.face_filename)
+    viseme_images = load_visemes(
+        ap.sprites_root,
+        mouth_max_w,
+        mouth_max_h,
+        visemes_dir=ap.visemes_dir,
+        labels=labels,
+    )
+    eye_images = load_eyes(ap.sprites_root, eye_max_w, eye_max_h, eyes_dir=ap.eyes_dir)
+    idle_names = personality.all_idle_mouth_asset_names()
+    idle_mouth_images = load_idle_mouths(
+        ap.sprites_root,
+        idle_names,
+        mouth_max_w,
+        mouth_max_h,
+        visemes_dir=ap.visemes_dir,
+    )
 
     if not face:
         print("ERROR: avatar-base.png not found")
@@ -62,32 +71,17 @@ def test_animations() -> None:
     face_x = (WINDOW_WIDTH - face.get_width()) // 2
     face_y = 60
     mouth_cx = face_x + face.get_width() // 2
-    mouth_cy = face_y + int(face.get_height() * MOUTH_Y_RATIO)
+    mouth_cy = face_y + int(face.get_height() * layout.mouth_y_ratio)
     eye_cx = face_x + face.get_width() // 2
-    eye_cy = face_y + int(face.get_height() * EYE_Y_RATIO)
+    eye_cy = face_y + int(face.get_height() * layout.eye_y_ratio)
 
     font = pygame.font.SysFont("monospace", 15)
     font_big = pygame.font.SysFont("monospace", 18, bold=True)
 
     # Build category lists.
     cat_names = ["Eye Sequences", "Idle Mouths", "Emotes"]
-    idle_mouth_catalog: list[str] = [
-        n
-        for n in (
-            "on-side",
-            "stunt2",
-            "big-smile",
-            "wide-smile",
-            "tongue-out",
-            "tongue-out2",
-            "laugh",
-            "laugh2",
-            "laugh3",
-            "scream",
-        )
-        if n in idle_mouth_images
-    ]
-    emote_catalog = [e for e in EMOTES if e.mouth in idle_mouth_images]
+    idle_mouth_catalog: list[str] = sorted(idle_mouth_images.keys())
+    emote_catalog = [e for e in personality.emotes if e.mouth in idle_mouth_images]
 
     cat_items: list[list[str]] = [
         [name for name, _ in EYE_SEQUENCE_CATALOG],

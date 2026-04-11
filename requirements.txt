@@ -4,3 +4,4 @@ python-dotenv
 pygame
 numpy
 pytest
+PyYAML

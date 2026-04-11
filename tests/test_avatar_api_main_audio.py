@@ -3,6 +3,7 @@ import types
 import pytest
 
 from backend.models import PipelineResult, TtsResult, VisemeEvent
+from backend.personalities import load_personality
 from backend.rendering.audio import _ensure_mixer, play_audio
 from backend.rendering.avatar_window import get_active_viseme, render_avatar
 
@@ -25,8 +26,14 @@ def test_get_active_viseme(elapsed_ms: float, expected: int):
 
 def test_render_avatar_skips_when_not_ready(monkeypatch: pytest.MonkeyPatch):
     fake_window = types.SimpleNamespace(ready=False, play=lambda r: None, run_forever=lambda: None)
-    monkeypatch.setattr("backend.rendering.avatar_window.AvatarWindow", lambda oneshot: fake_window)
-    render_avatar(PipelineResult(user_text="u", response_text="r", tts=TtsResult(audio_data=b"")))
+    monkeypatch.setattr(
+        "backend.rendering.avatar_window.AvatarWindow",
+        lambda personality, *, oneshot=False: fake_window,
+    )
+    render_avatar(
+        PipelineResult(user_text="u", response_text="r", tts=TtsResult(audio_data=b"")),
+        load_personality("peter"),
+    )
 
 
 def test_render_avatar_plays_when_ready(monkeypatch: pytest.MonkeyPatch):
@@ -41,8 +48,14 @@ def test_render_avatar_plays_when_ready(monkeypatch: pytest.MonkeyPatch):
         def run_forever(self):
             calls["run"] += 1
 
-    monkeypatch.setattr("backend.rendering.avatar_window.AvatarWindow", lambda oneshot: _Window())
-    render_avatar(PipelineResult(user_text="u", response_text="r", tts=TtsResult(audio_data=b"")))
+    monkeypatch.setattr(
+        "backend.rendering.avatar_window.AvatarWindow",
+        lambda personality, *, oneshot=False: _Window(),
+    )
+    render_avatar(
+        PipelineResult(user_text="u", response_text="r", tts=TtsResult(audio_data=b"")),
+        load_personality("peter"),
+    )
     assert calls == {"play": 1, "run": 1}
 
 
@@ -110,8 +123,10 @@ def test_main_test_flag_runs_pytest(monkeypatch: pytest.MonkeyPatch):
         test=True,
         test_sprites=False,
         test_animations=False,
+        test_personalities=False,
         log_level="INFO",
         output=None,
+        personality="peter",
     )
     monkeypatch.setattr("backend.main.parse_args", lambda: args)
     monkeypatch.setattr("backend.main.setup_logging", lambda level: None)
@@ -133,15 +148,23 @@ def test_main_test_sprites_branch(monkeypatch: pytest.MonkeyPatch):
         test=False,
         test_sprites=True,
         test_animations=False,
+        test_personalities=False,
         log_level="INFO",
         output=None,
+        personality="emma",
     )
-    calls = {"sprites": 0}
+    calls = {"sprites": 0, "pid": None}
+
+    def _fake_sprites(personality_id: str = "peter") -> None:
+        calls["sprites"] += 1
+        calls["pid"] = personality_id
+
     monkeypatch.setattr("backend.main.parse_args", lambda: args)
     monkeypatch.setattr("backend.main.setup_logging", lambda level: None)
-    monkeypatch.setattr("backend.rendering.avatar.test_sprites", lambda: calls.__setitem__("sprites", calls["sprites"] + 1))
+    monkeypatch.setattr("backend.rendering.avatar.test_sprites", _fake_sprites)
     main_mod.main()
     assert calls["sprites"] == 1
+    assert calls["pid"] == "emma"
 
 
 def test_main_test_animations_branch(monkeypatch: pytest.MonkeyPatch):
@@ -156,18 +179,57 @@ def test_main_test_animations_branch(monkeypatch: pytest.MonkeyPatch):
         test=False,
         test_sprites=False,
         test_animations=True,
+        test_personalities=False,
         log_level="INFO",
         output=None,
+        personality="peter",
     )
     calls = {"animations": 0}
     monkeypatch.setattr("backend.main.parse_args", lambda: args)
     monkeypatch.setattr("backend.main.setup_logging", lambda level: None)
     monkeypatch.setattr(
         "backend.rendering.avatar.test_animations",
-        lambda: calls.__setitem__("animations", calls["animations"] + 1),
+        lambda personality_id="peter": calls.__setitem__("animations", calls["animations"] + 1),
     )
     main_mod.main()
     assert calls["animations"] == 1
+
+
+def test_main_test_personalities_branch(monkeypatch: pytest.MonkeyPatch):
+    import backend.main as main_mod
+    from backend.cli import Args
+
+    args = Args(
+        text=None,
+        audio=None,
+        file=None,
+        render=False,
+        test=False,
+        test_sprites=False,
+        test_animations=False,
+        test_personalities=True,
+        log_level="INFO",
+        output=None,
+        personality="ted",
+    )
+    calls = {"demo": 0, "pid": None, "settings": None}
+
+    class _Settings:
+        pass
+
+    def _fake_demo(pid: str, settings) -> None:
+        calls["demo"] += 1
+        calls["pid"] = pid
+        calls["settings"] = settings
+
+    monkeypatch.setattr("backend.main.parse_args", lambda: args)
+    monkeypatch.setattr("backend.main.setup_logging", lambda level: None)
+    monkeypatch.setattr("backend.main.Settings.load", lambda: _Settings())
+    monkeypatch.setattr("backend.rendering.avatar.test_personalities", _fake_demo)
+    main_mod.main()
+    assert calls["demo"] == 1
+    assert calls["pid"] == "ted"
+    assert isinstance(calls["settings"], _Settings)
 
 
 def test_main_missing_settings_exits(monkeypatch: pytest.MonkeyPatch):
@@ -182,8 +244,10 @@ def test_main_missing_settings_exits(monkeypatch: pytest.MonkeyPatch):
         test=False,
         test_sprites=False,
         test_animations=False,
+        test_personalities=False,
         log_level="INFO",
         output=None,
+        personality="peter",
     )
     monkeypatch.setattr("backend.main.parse_args", lambda: args)
     monkeypatch.setattr("backend.main.setup_logging", lambda level: None)
@@ -205,21 +269,31 @@ def test_main_constructs_pipeline_and_runs(monkeypatch: pytest.MonkeyPatch):
         test=False,
         test_sprites=False,
         test_animations=False,
+        test_personalities=False,
         log_level="INFO",
         output=None,
+        personality="peter",
     )
     calls = {"run": 0}
+    fake_personality = types.SimpleNamespace(
+        id="peter",
+        display_name="Peter",
+        azure_voice_name="",
+        llm_system_prompt="",
+    )
     settings = types.SimpleNamespace(
         openai_api_key="ok",
         azure_speech_key="az",
         azure_speech_region="eastus",
         azure_voice_name="voice",
+        llm_system_prompt="You are a helpful assistant.",
     )
     monkeypatch.setattr("backend.main.parse_args", lambda: args)
     monkeypatch.setattr("backend.main.setup_logging", lambda level: None)
     monkeypatch.setattr("backend.main.Settings.load", lambda: settings)
+    monkeypatch.setattr("backend.main.load_personality", lambda pid: fake_personality)
     monkeypatch.setattr("backend.main.WhisperSttService", lambda api_key: object())
-    monkeypatch.setattr("backend.main.EchoLlmService", lambda: object())
+    monkeypatch.setattr("backend.main.EchoLlmService", lambda **kwargs: object())
     monkeypatch.setattr("backend.main.AzureTtsService", lambda speech_key, speech_region, voice_name: object())
 
     class _Pipeline:
@@ -228,9 +302,10 @@ def test_main_constructs_pipeline_and_runs(monkeypatch: pytest.MonkeyPatch):
             self.llm = llm
             self.tts = tts
 
-        def run(self, arg_obj):
+        def run(self, arg_obj, personality):
             calls["run"] += 1
             assert arg_obj is args
+            assert personality is fake_personality
 
     monkeypatch.setattr("backend.main.Pipeline", _Pipeline)
     main_mod.main()

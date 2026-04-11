@@ -5,6 +5,7 @@ from pathlib import Path
 
 from backend.cli import Args
 from backend.models import PipelineResult, SessionUsage, TtsResult
+from backend.personalities import Personality
 from backend.services import LlmService, SttService, TtsService
 
 # OpenAI Whisper pricing: $0.006 per minute of audio
@@ -99,7 +100,7 @@ class Pipeline:
 
         return results
 
-    def run(self, args: Args) -> None:
+    def run(self, args: Args, personality: Personality) -> None:
         """Run the pipeline based on CLI arguments."""
         from backend.rendering.audio import play_audio
 
@@ -108,7 +109,7 @@ class Pipeline:
             self._output_result(result, args)
             if args.render:
                 from backend.rendering.avatar import render_avatar
-                render_avatar(result)
+                render_avatar(result, personality)
             else:
                 play_audio(result.tts)
 
@@ -117,7 +118,7 @@ class Pipeline:
             self._output_result(result, args)
             if args.render:
                 from backend.rendering.avatar import render_avatar
-                render_avatar(result)
+                render_avatar(result, personality)
             else:
                 play_audio(result.tts)
 
@@ -127,19 +128,19 @@ class Pipeline:
                 self._output_result(r, args)
                 if args.render:
                     from backend.rendering.avatar import render_avatar
-                    render_avatar(r)
+                    render_avatar(r, personality)
                 else:
                     play_audio(r.tts)
 
         else:
-            self._interactive(args)
+            self._interactive(args, personality)
 
         self._print_usage_report()
 
-    def _interactive(self, args: Args) -> None:
+    def _interactive(self, args: Args, personality: Personality) -> None:
         """Interactive text input loop."""
         if args.render:
-            self._interactive_render(args)
+            self._interactive_render(args, personality)
         else:
             self._interactive_text(args)
 
@@ -163,7 +164,7 @@ class Pipeline:
             self._output_result(result, args)
             play_audio(result.tts)
 
-    def _interactive_render(self, args: Args) -> None:
+    def _interactive_render(self, args: Args, personality: Personality) -> None:
         """Interactive loop with a persistent avatar window.
 
         Pygame must run on the main thread (macOS requirement), so we read
@@ -174,7 +175,7 @@ class Pipeline:
 
         from backend.rendering.avatar import AvatarWindow
 
-        window = AvatarWindow()
+        window = AvatarWindow(personality)
         if not window.ready:
             logger.warning("Avatar assets not found — falling back to text mode")
             self._interactive_text(args)

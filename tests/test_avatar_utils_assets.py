@@ -104,72 +104,64 @@ def test_blit_centered_applies_partial_alpha_and_resets():
     assert surf.get_alpha() == 255
 
 
-def test_load_face_missing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    monkeypatch.setattr("backend.rendering.avatar_assets.ASSETS_DIR", tmp_path)
-    assert load_face(100) is None
+def test_load_face_missing(tmp_path: Path):
+    assert load_face(tmp_path, 100) is None
 
 
-def test_load_face_present(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+def test_load_face_present(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     (tmp_path / "avatar-base.png").write_bytes(b"x")
-    monkeypatch.setattr("backend.rendering.avatar_assets.ASSETS_DIR", tmp_path)
     monkeypatch.setattr("pygame.image.load", lambda path: _FakeImage("raw-face"))
     monkeypatch.setattr("backend.rendering.avatar_assets.scale_to_fit", lambda surf, w, h: ("scaled", surf, w, h))
-    out = load_face(123)
+    out = load_face(tmp_path, 123)
     assert out == ("scaled", "raw-face", 123, 123)
 
 
-def test_load_visemes_only_existing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+def test_load_visemes_only_existing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     vis_dir = tmp_path / "visemes"
     vis_dir.mkdir()
     (vis_dir / f"viseme-00-{VISEME_LABELS[0]}.png").write_bytes(b"x")
     (vis_dir / f"viseme-05-{VISEME_LABELS[5]}.png").write_bytes(b"x")
-    monkeypatch.setattr("backend.rendering.avatar_assets.ASSETS_DIR", tmp_path)
     monkeypatch.setattr("pygame.image.load", lambda path: _FakeImage(f"img:{Path(path).name}"))
     monkeypatch.setattr("backend.rendering.avatar_assets.scale_to_fit", lambda surf, w, h: f"scaled:{surf}")
-    images = load_visemes(10, 11)
+    images = load_visemes(tmp_path, 10, 11)
     assert set(images.keys()) == {0, 5}
 
 
-def test_load_idle_mouths_only_existing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+def test_load_idle_mouths_only_existing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     vis_dir = tmp_path / "visemes"
     vis_dir.mkdir()
     first = IDLE_MOUTH_NAMES[0]
     second = IDLE_MOUTH_NAMES[1]
     (vis_dir / f"viseme-{first}.png").write_bytes(b"x")
     (vis_dir / f"viseme-{second}.png").write_bytes(b"x")
-    monkeypatch.setattr("backend.rendering.avatar_assets.ASSETS_DIR", tmp_path)
     monkeypatch.setattr("pygame.image.load", lambda path: _FakeImage(f"img:{Path(path).name}"))
     monkeypatch.setattr("backend.rendering.avatar_assets.scale_to_fit", lambda surf, w, h: f"scaled:{surf}")
-    images = load_idle_mouths(10, 11)
+    images = load_idle_mouths(tmp_path, IDLE_MOUTH_NAMES[:2], 10, 11)
     assert set(images.keys()) == {first, second}
 
 
-def test_load_eyes_returns_empty_when_missing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    monkeypatch.setattr("backend.rendering.avatar_assets.ASSETS_DIR", tmp_path)
-    assert load_eyes(10, 10) == {}
+def test_load_eyes_returns_empty_when_missing(tmp_path: Path):
+    assert load_eyes(tmp_path, 10, 10) == {}
 
 
-def test_load_eyes_loads_valid_files(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+def test_load_eyes_loads_valid_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     eyes = tmp_path / "eyes"
     eyes.mkdir()
     (eyes / "eye-00-open.png").write_bytes(b"x")
     (eyes / "eye-03-blink.png").write_bytes(b"x")
-    monkeypatch.setattr("backend.rendering.avatar_assets.ASSETS_DIR", tmp_path)
     monkeypatch.setattr("pygame.image.load", lambda path: _FakeImage(f"img:{Path(path).name}"))
     monkeypatch.setattr("backend.rendering.avatar_assets.scale_to_fit", lambda surf, w, h: f"scaled:{surf}")
-    out = load_eyes(15, 16)
+    out = load_eyes(tmp_path, 15, 16)
     assert out[0] == "scaled:img:eye-00-open.png"
     assert out[3] == "scaled:img:eye-03-blink.png"
 
 
-def test_load_eyes_skips_bad_files(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+def test_load_eyes_skips_bad_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     eyes = tmp_path / "eyes"
     eyes.mkdir()
     (eyes / "eye-abc-invalid.png").write_bytes(b"x")
     (eyes / "eye-01-ok.png").write_bytes(b"x")
-    monkeypatch.setattr("backend.rendering.avatar_assets.ASSETS_DIR", tmp_path)
     monkeypatch.setattr("pygame.image.load", lambda path: _FakeImage(f"img:{Path(path).name}"))
     monkeypatch.setattr("backend.rendering.avatar_assets.scale_to_fit", lambda surf, w, h: f"scaled:{surf}")
-    out = load_eyes(20, 20)
+    out = load_eyes(tmp_path, 20, 20)
     assert set(out.keys()) == {1}
-

@@ -17,8 +17,10 @@ def test_parse_defaults(monkeypatch: pytest.MonkeyPatch):
     assert args.test is False
     assert args.test_sprites is False
     assert args.test_animations is False
+    assert args.test_personalities is False
     assert args.log_level == "INFO"
     assert args.output is None
+    assert args.personality == "peter"
 
 
 @pytest.mark.parametrize(
@@ -54,6 +56,11 @@ def test_parse_test_animations(monkeypatch: pytest.MonkeyPatch):
     assert args.test_animations is True
 
 
+def test_parse_test_personalities(monkeypatch: pytest.MonkeyPatch):
+    args = _parse(monkeypatch, ["--test-personalities"])
+    assert args.test_personalities is True
+
+
 @pytest.mark.parametrize("level", ["DEBUG", "INFO", "WARNING", "ERROR"])
 def test_parse_log_levels(monkeypatch: pytest.MonkeyPatch, level: str):
     args = _parse(monkeypatch, ["--log-level", level])
@@ -63,6 +70,11 @@ def test_parse_log_levels(monkeypatch: pytest.MonkeyPatch, level: str):
 def test_parse_output(monkeypatch: pytest.MonkeyPatch):
     args = _parse(monkeypatch, ["--output", "outdir"])
     assert args.output == "outdir"
+
+
+def test_parse_personality(monkeypatch: pytest.MonkeyPatch):
+    args = _parse(monkeypatch, ["--personality", "Emma"])
+    assert args.personality == "emma"
 
 
 def test_parse_combined_flags(monkeypatch: pytest.MonkeyPatch):
@@ -75,10 +87,13 @@ def test_parse_combined_flags(monkeypatch: pytest.MonkeyPatch):
             "--test",
             "--test-sprites",
             "--test-animations",
+            "--test-personalities",
             "--log-level",
             "DEBUG",
             "--output",
             "tmp",
+            "--personality",
+            "trevor",
         ],
     )
     assert args.text == "hello"
@@ -86,8 +101,10 @@ def test_parse_combined_flags(monkeypatch: pytest.MonkeyPatch):
     assert args.test is True
     assert args.test_sprites is True
     assert args.test_animations is True
+    assert args.test_personalities is True
     assert args.log_level == "DEBUG"
     assert args.output == "tmp"
+    assert args.personality == "trevor"
 
 
 @pytest.mark.parametrize(
