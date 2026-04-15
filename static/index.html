@@ -1,0 +1,1420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Avatar Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #1a1a24;
+  --bg2: #222233;
+  --bg3: #2a2a3d;
+  --surface: #30304a;
+  --border: #3d3d5c;
+  --text: #e8e8f0;
+  --text-dim: #8888aa;
+  --accent: #ff6b4a;
+  --accent2: #ff8f73;
+  --accent-glow: rgba(255, 107, 74, 0.25);
+  --green: #4ecb71;
+  --yellow: #ffd04a;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Space Mono', monospace;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.grain {
+  position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+header {
+  padding: 20px 32px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+}
+
+.logo {
+  font-family: 'Syne', sans-serif;
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: -0.5px;
+  display: flex; align-items: center; gap: 10px;
+}
+
+.logo-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent-glow);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.85); }
+}
+
+.status-badge {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  display: flex; align-items: center; gap: 6px;
+}
+
+.status-badge .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green);
+}
+
+.status-badge.speaking .dot { background: var(--accent); }
+.status-badge.error .dot { background: #ff4444; }
+
+.main-layout {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  max-width: 1200px;
+  margin: 0 auto;
+  gap: 0;
+  min-height: calc(100vh - 65px);
+}
+
+@media (max-width: 860px) {
+  .main-layout { grid-template-columns: 1fr; }
+  .sidebar { border-left: none !important; border-top: 1px solid var(--border); }
+}
+
+.canvas-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  position: relative;
+}
+
+#avatar-canvas {
+  border-radius: 16px;
+  background: #28283a;
+  box-shadow:
+    0 4px 24px rgba(0,0,0,0.4),
+    inset 0 1px 0 rgba(255,255,255,0.04);
+  image-rendering: auto;
+}
+
+.hud {
+  margin-top: 16px;
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+  letter-spacing: 0.5px;
+}
+
+.sidebar {
+  border-left: 1px solid var(--border);
+  background: var(--bg2);
+  display: flex;
+  flex-direction: column;
+}
+
+.section {
+  padding: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.section-title {
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-dim);
+  margin-bottom: 14px;
+}
+
+.personality-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.p-btn {
+  background: var(--bg3);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  color: var(--text);
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+}
+
+.p-btn:hover { border-color: var(--accent2); background: var(--surface); }
+.p-btn.active {
+  border-color: var(--accent);
+  background: rgba(255, 107, 74, 0.1);
+  box-shadow: 0 0 16px var(--accent-glow);
+}
+
+.p-btn .p-name {
+  font-weight: 700;
+  font-family: 'Syne', sans-serif;
+  font-size: 13px;
+}
+
+.p-btn .p-voice {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.input-area {
+  padding: 20px;
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+}
+
+.input-row {
+  display: flex;
+  gap: 8px;
+}
+
+#text-input {
+  flex: 1;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  color: var(--text);
+  font-family: 'Space Mono', monospace;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+#text-input:focus { border-color: var(--accent); }
+
+#text-input::placeholder { color: var(--text-dim); }
+
+.send-btn {
+  background: var(--accent);
+  border: none;
+  border-radius: 10px;
+  width: 48px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.send-btn:hover { background: var(--accent2); transform: scale(1.04); }
+.send-btn:active { transform: scale(0.96); }
+
+.send-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.send-btn svg { fill: white; width: 20px; height: 20px; }
+
+.mic-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+  margin-bottom: 8px;
+  min-height: 16px;
+  transition: opacity 0.2s;
+}
+
+.mic-hint.recording {
+  color: var(--accent);
+  animation: pulse-text 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse-text {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.mic-btn {
+  background: var(--bg3);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  width: 48px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  position: relative;
+}
+
+.mic-btn:hover { border-color: var(--accent2); background: var(--surface); }
+
+.mic-btn.recording {
+  border-color: var(--accent);
+  background: rgba(255, 107, 74, 0.15);
+  box-shadow: 0 0 20px var(--accent-glow), 0 0 40px rgba(255, 107, 74, 0.1);
+  animation: mic-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 20px var(--accent-glow), 0 0 40px rgba(255, 107, 74, 0.1); }
+  50% { box-shadow: 0 0 28px var(--accent-glow), 0 0 56px rgba(255, 107, 74, 0.18); }
+}
+
+.mic-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  animation: none;
+}
+
+.mic-btn svg { fill: var(--text); width: 20px; height: 20px; transition: fill 0.15s; }
+.mic-btn.recording .mic-icon { display: none; }
+.mic-btn.recording .stop-icon { display: block; fill: var(--accent); }
+.mic-btn.recording .mic-waveform { display: none; }
+
+.mic-waveform {
+  position: absolute;
+  border-radius: 50%;
+}
+
+.response-area {
+  padding: 20px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.response-bubble {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+  margin-bottom: 10px;
+  animation: fadeIn 0.3s ease;
+}
+
+.response-bubble.user {
+  background: rgba(255, 107, 74, 0.08);
+  border-color: rgba(255, 107, 74, 0.2);
+}
+
+.response-bubble .label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.response-bubble.user .label { color: var(--accent); }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.loading-spinner {
+  display: inline-block;
+  width: 14px; height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    Avatar Demo
+  </div>
+  <div class="status-badge" id="status-badge">
+    <div class="dot"></div>
+    <span id="status-text">Initializing...</span>
+  </div>
+</header>
+
+<div class="main-layout">
+  <div class="canvas-area">
+    <canvas id="avatar-canvas" width="600" height="600"></canvas>
+    <div class="hud" id="hud">Loading assets...</div>
+  </div>
+
+  <div class="sidebar">
+    <div class="section">
+      <div class="section-title">Personality</div>
+      <div class="personality-grid" id="personality-grid"></div>
+    </div>
+
+    <div class="response-area" id="response-area"></div>
+
+    <div class="input-area">
+      <div class="mic-hint" id="mic-hint"></div>
+      <div class="input-row">
+        <input type="text" id="text-input" placeholder="Type a message..." autocomplete="off" />
+        <button class="mic-btn" id="mic-btn" title="Click to record, click again to stop">
+          <svg class="mic-icon" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+          <svg class="stop-icon" viewBox="0 0 24 24" style="display:none"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+          <canvas class="mic-waveform" id="mic-waveform" width="36" height="36" style="display:none"></canvas>
+        </button>
+        <button class="send-btn" id="send-btn" disabled>
+          <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================================
+// Utility
+// ============================================================================
+function smoothstep(t) {
+  t = Math.max(0, Math.min(1, t));
+  return t * t * (3 - 2 * t);
+}
+
+function randRange(min, max) {
+  return min + Math.random() * (max - min);
+}
+
+function randChoice(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function weightedChoice(items, weights) {
+  const total = weights.reduce((a, b) => a + b, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < items.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return items[i];
+  }
+  return items[items.length - 1];
+}
+
+// ============================================================================
+// Eye Sequences
+// ============================================================================
+const SEQ_BLINK = [[3,90,42],[4,66,66],[3,66,42],[0,114,0]];
+const SEQ_SLOW_BLINK = [[3,138,72],[4,108,108],[12,96,624],[3,102,60],[0,168,0]];
+const SEQ_DOUBLE_BLINK = [[3,78,34],[4,60,54],[3,60,34],[0,72,228],[3,78,34],[4,60,54],[3,60,34],[0,120,0]];
+const SEQ_SPIN = [[8,138,90],[10,126,78],[1,126,78],[11,126,78],[0,186,0]];
+const SEQ_FRANTIC = [[2,90,66],[14,90,66],[2,90,66],[14,90,66],[0,192,0]];
+const SEQ_CROSSEYED = [[13,222,432],[4,72,78],[13,150,372],[0,252,0]];
+const SEQ_SHOCK_SQUINT = [[2,150,468],[9,270,720],[0,234,0]];
+const SEQ_CONFUSED = [[10,198,240],[1,174,240],[5,222,504],[0,222,0]];
+
+const BLINK_POOL = [
+  { seq: SEQ_BLINK, weight: 0.65 },
+  { seq: SEQ_SLOW_BLINK, weight: 0.20 },
+  { seq: SEQ_DOUBLE_BLINK, weight: 0.15 },
+];
+
+const GOOFY_POOL = [SEQ_SPIN, SEQ_FRANTIC, SEQ_CROSSEYED, SEQ_SHOCK_SQUINT, SEQ_CONFUSED];
+
+function eyeSeqUsesForbidden(seq, forbidden) {
+  if (!forbidden || forbidden.size === 0) return false;
+  return seq.some(([idx]) => forbidden.has(idx));
+}
+
+// ============================================================================
+// EyeController (JS port)
+// ============================================================================
+class EyeController {
+  constructor(cfg) {
+    this.cfg = cfg;
+    this.forbiddenEyeIndices = new Set(cfg.forbidden_eye_indices || []);
+    this._current = 0;
+    this._prev = 0;
+    this._transStart = 0;
+    this._transDur = 0;
+    this._inTrans = false;
+
+    this._seq = [];
+    this._seqStep = 0;
+    this._seqStepStart = 0;
+    this._seqActive = false;
+
+    this._lookReturnMs = 0;
+    this._lookingAway = false;
+
+    this._nextBlinkMs = randRange(...cfg.blink_initial_ms);
+    this._nextMicroMs = cfg.enable_micro_glance ? randRange(...cfg.micro_initial_ms) : Infinity;
+    this._nextGlanceMs = cfg.enable_long_glance ? randRange(...cfg.glance_initial_ms) : Infinity;
+    this._nextExprMs = cfg.enable_expr_glance ? randRange(...cfg.expr_initial_ms) : Infinity;
+    this._nextGoofyMs = cfg.enable_goofy_sequences ? randRange(...cfg.goofy_initial_ms) : Infinity;
+  }
+
+  transitionTo(idx, durMs, elapsedMs) {
+    if (idx === this._current && !this._inTrans) return;
+    this._prev = this._visible(elapsedMs);
+    this._current = idx;
+    this._transStart = elapsedMs;
+    this._transDur = durMs;
+    this._inTrans = true;
+  }
+
+  _visible(elapsedMs) {
+    return this._t(elapsedMs) >= 0.5 ? this._current : this._prev;
+  }
+
+  _t(elapsedMs) {
+    if (!this._inTrans) return 1;
+    const raw = (elapsedMs - this._transStart) / Math.max(1, this._transDur);
+    const t = smoothstep(Math.min(1, raw));
+    if (t >= 1) this._inTrans = false;
+    return t;
+  }
+
+  playSequence(seq, elapsedMs) {
+    this._seq = seq;
+    this._seqStep = 0;
+    this._seqStepStart = elapsedMs;
+    this._seqActive = true;
+    this._lookingAway = false;
+    const [idx, transMs] = seq[0];
+    this.transitionTo(idx, transMs, elapsedMs);
+  }
+
+  _advanceSeq(elapsedMs) {
+    if (!this._seqActive) return;
+    const [, transMs, holdMs] = this._seq[this._seqStep];
+    if (elapsedMs - this._seqStepStart >= transMs + holdMs) {
+      this._seqStep++;
+      if (this._seqStep >= this._seq.length) {
+        this._seqActive = false;
+        return;
+      }
+      const [nidx, ntrans] = this._seq[this._seqStep];
+      this.transitionTo(nidx, ntrans, elapsedMs);
+      this._seqStepStart = elapsedMs;
+    }
+  }
+
+  getBlend(elapsedMs) {
+    const cfg = this.cfg;
+
+    if (this._seqActive) {
+      this._advanceSeq(elapsedMs);
+    } else if (this._lookingAway && elapsedMs >= this._lookReturnMs) {
+      this._lookingAway = false;
+      this.transitionTo(0, 264, elapsedMs);
+    } else if (!this._seqActive && !this._lookingAway) {
+      if (elapsedMs >= this._nextBlinkMs) {
+        const seq = weightedChoice(
+          BLINK_POOL.map(b => b.seq),
+          BLINK_POOL.map(b => b.weight)
+        );
+        this.playSequence(seq, elapsedMs);
+        this._nextBlinkMs = elapsedMs + randRange(...cfg.blink_after_ms);
+      } else if (cfg.enable_micro_glance && cfg.micro_glance_indices.length && elapsedMs >= this._nextMicroMs) {
+        this.transitionTo(randChoice(cfg.micro_glance_indices), cfg.micro_transition_ms, elapsedMs);
+        this._lookingAway = true;
+        this._lookReturnMs = elapsedMs + randRange(...cfg.micro_return_ms);
+        this._nextMicroMs = elapsedMs + randRange(...cfg.micro_after_ms);
+      } else if (cfg.enable_long_glance && cfg.glance_indices.length && elapsedMs >= this._nextGlanceMs) {
+        this.transitionTo(randChoice(cfg.glance_indices), cfg.glance_transition_ms, elapsedMs);
+        this._lookingAway = true;
+        this._lookReturnMs = elapsedMs + randRange(...cfg.glance_return_ms);
+        this._nextGlanceMs = elapsedMs + randRange(...cfg.glance_after_ms);
+      } else if (cfg.enable_expr_glance && cfg.expr_indices.length && elapsedMs >= this._nextExprMs) {
+        this.transitionTo(randChoice(cfg.expr_indices), cfg.expr_transition_ms, elapsedMs);
+        this._lookingAway = true;
+        this._lookReturnMs = elapsedMs + randRange(...cfg.expr_return_ms);
+        this._nextExprMs = elapsedMs + randRange(...cfg.expr_after_ms);
+      } else if (cfg.enable_goofy_sequences && elapsedMs >= this._nextGoofyMs) {
+        const ok = GOOFY_POOL.filter(s => !eyeSeqUsesForbidden(s, this.forbiddenEyeIndices));
+        if (ok.length) this.playSequence(randChoice(ok), elapsedMs);
+        this._nextGoofyMs = elapsedMs + randRange(...cfg.goofy_after_ms);
+      }
+    }
+
+    const t = this._t(elapsedMs);
+    return { fromIdx: this._prev, toIdx: this._current, t };
+  }
+
+  get stateLabel() {
+    if (this._seqActive) return 'seq';
+    if (this._lookingAway) return 'look';
+    return 'idle';
+  }
+}
+
+// ============================================================================
+// MouthController (JS port)
+// ============================================================================
+class MouthController {
+  constructor(pools, timing, idleAnimEnabled = true) {
+    this._pools = pools;
+    this._timing = timing;
+    this._idleAnimEnabled = idleAnimEnabled;
+    this._current = null;
+    this._prev = null;
+    this._transStart = 0;
+    this._transDur = 0;
+    this._inTrans = false;
+    this._idleSinceMs = 0;
+    this._idle = false;
+    this._returnMs = 0;
+    this._holding = false;
+    this._nextSubtleMs = 0;
+    this._nextHappyMs = 0;
+    this._nextGoofyMs = 0;
+    this._nextDramaticMs = 0;
+    this._resetTimers(0);
+  }
+
+  _resetTimers(now) {
+    const t = this._timing;
+    this._nextSubtleMs = now + randRange(...t.subtle_next_initial);
+    this._nextHappyMs = now + randRange(...t.happy_next_initial);
+    this._nextGoofyMs = now + randRange(...t.goofy_next_initial);
+    this._nextDramaticMs = now + randRange(...t.dramatic_next_initial);
+  }
+
+  transitionTo(name, durMs, elapsedMs) {
+    const vis = this._visible(elapsedMs);
+    if (name === vis) return;
+    this._prev = vis;
+    this._current = name;
+    this._transStart = elapsedMs;
+    this._transDur = durMs;
+    this._inTrans = true;
+  }
+
+  _visible(elapsedMs) {
+    return this._t(elapsedMs) >= 0.5 ? this._current : this._prev;
+  }
+
+  _t(elapsedMs) {
+    if (!this._inTrans) return 1;
+    const raw = (elapsedMs - this._transStart) / Math.max(1, this._transDur);
+    const t = smoothstep(Math.min(1, raw));
+    if (t >= 1) this._inTrans = false;
+    return t;
+  }
+
+  notifySpeaking() {
+    this._idle = false;
+    this._current = null;
+    this._prev = null;
+    this._inTrans = false;
+    this._holding = false;
+  }
+
+  notifyIdle(nowMs) {
+    if (!this._idle) {
+      this._idle = true;
+      this._idleSinceMs = nowMs;
+      this._resetTimers(nowMs + this._timing.idle_delay_ms);
+    }
+  }
+
+  beginHold(name, transMs, holdMs, elapsedMs) {
+    this.transitionTo(name, transMs, elapsedMs);
+    this._holding = true;
+    this._returnMs = elapsedMs + holdMs;
+  }
+
+  getIdleMouth(elapsedMs, availableNames) {
+    if (!this._idle) return { prev: null, cur: null, t: 1 };
+    if (!this._idleAnimEnabled) return { prev: null, cur: null, t: 1 };
+    if (elapsedMs - this._idleSinceMs < this._timing.idle_delay_ms)
+      return { prev: null, cur: null, t: 1 };
+
+    if (this._holding && elapsedMs >= this._returnMs) {
+      this._holding = false;
+      this.transitionTo(null, this._timing.return_transition_ms, elapsedMs);
+    }
+
+    const tc = this._timing;
+    const pools = this._pools;
+
+    if (!this._holding && !this._inTrans) {
+      const tryTier = (timerProp, nextAfterProp, poolNames, tranMs, holdRange) => {
+        if (elapsedMs >= this[timerProp]) {
+          const avail = poolNames.filter(n => availableNames.has(n));
+          if (avail.length) {
+            this.beginHold(randChoice(avail), tranMs, randRange(...holdRange), elapsedMs);
+          }
+          this[timerProp] = elapsedMs + randRange(...tc[nextAfterProp]);
+          return true;
+        }
+        return false;
+      };
+
+      tryTier('_nextSubtleMs', 'subtle_next_after', pools.subtle, tc.subtle_transition_ms, tc.subtle_hold_ms) ||
+      tryTier('_nextHappyMs', 'happy_next_after', pools.happy, tc.happy_transition_ms, tc.happy_hold_ms) ||
+      tryTier('_nextGoofyMs', 'goofy_next_after', pools.goofy, tc.goofy_transition_ms, tc.goofy_hold_ms) ||
+      tryTier('_nextDramaticMs', 'dramatic_next_after', pools.dramatic, tc.dramatic_transition_ms, tc.dramatic_hold_ms);
+    }
+
+    const t = this._t(elapsedMs);
+    return { prev: this._prev, cur: this._current, t };
+  }
+}
+
+// ============================================================================
+// EmoteController (JS port)
+// ============================================================================
+class EmoteController {
+  constructor(emotes, timing) {
+    this._emotes = emotes;
+    this._timing = timing;
+    this._idle = false;
+    this._idleSinceMs = 0;
+    this._nextEmoteMs = 0;
+    this._active = false;
+    this._emote = null;
+    this._startMs = 0;
+  }
+
+  notifySpeaking() {
+    this._idle = false;
+    this._active = false;
+    this._emote = null;
+  }
+
+  notifyIdle(nowMs) {
+    if (!this._timing.enabled || !this._emotes.length) return;
+    if (!this._idle) {
+      this._idle = true;
+      this._idleSinceMs = nowMs;
+      this._nextEmoteMs = nowMs + this._timing.idle_delay_ms + randRange(...this._timing.first_emote_after_ms);
+    }
+  }
+
+  update(elapsedMs, eyeCtrl, mouthCtrl, availableMouthNames) {
+    if (!this._timing.enabled || !this._emotes.length) return false;
+    if (!this._idle) return false;
+    if (elapsedMs - this._idleSinceMs < this._timing.idle_delay_ms) return false;
+
+    if (this._active && this._emote) {
+      const totalEyeMs = this._emote.eye_seq.reduce((s, [,t,h]) => s + t + h, 0);
+      const emoteDur = Math.max(totalEyeMs, this._emote.mouth_hold_ms);
+      if (elapsedMs - this._startMs > emoteDur) {
+        this._active = false;
+        this._emote = null;
+        eyeCtrl.transitionTo(0, 250, elapsedMs);
+        mouthCtrl.transitionTo(null, 350, elapsedMs);
+        this._nextEmoteMs = elapsedMs + randRange(...this._timing.emote_after_ms);
+        return false;
+      }
+      return true;
+    }
+
+    if (elapsedMs >= this._nextEmoteMs) {
+      const forbidden = eyeCtrl.forbiddenEyeIndices;
+      const pool = this._emotes.filter(
+        e => availableMouthNames.has(e.mouth) && !eyeSeqUsesForbidden(e.eye_seq, forbidden)
+      );
+      if (pool.length) {
+        const emote = randChoice(pool);
+        this._emote = emote;
+        this._active = true;
+        this._startMs = elapsedMs;
+        eyeCtrl.playSequence(emote.eye_seq, elapsedMs);
+        mouthCtrl.beginHold(emote.mouth, 300, emote.mouth_hold_ms, elapsedMs);
+        return true;
+      }
+      this._nextEmoteMs = elapsedMs + randRange(...this._timing.emote_after_ms);
+    }
+    return false;
+  }
+}
+
+// ============================================================================
+// Asset Loader
+// ============================================================================
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null); // don't reject, just skip missing
+    img.src = src;
+  });
+}
+
+async function loadPersonalityAssets(p) {
+  const assets = {};
+
+  // Face
+  assets.face = await loadImage(p.assets.face_path);
+
+  // Viseme sprites (TTS mouth shapes)
+  assets.visemes = {};
+  for (let i = 0; i < p.viseme_labels.length; i++) {
+    const label = p.viseme_labels[i];
+    const img = await loadImage(`${p.assets.visemes_dir}/viseme-${String(i).padStart(2,'0')}-${label}.png`);
+    if (img) assets.visemes[i] = img;
+  }
+
+  // Eye sprites
+  assets.eyes = {};
+  for (let i = 0; i <= 14; i++) {
+    // We don't know names, just try common pattern
+    const candidates = await loadEyeByIndex(p.assets.eyes_dir, i);
+    if (candidates) assets.eyes[i] = candidates;
+  }
+
+  // Idle mouth sprites
+  assets.idleMouths = {};
+  for (const name of p.idle_mouth_names) {
+    const img = await loadImage(`${p.assets.visemes_dir}/viseme-${name}.png`);
+    if (img) assets.idleMouths[name] = img;
+  }
+
+  return assets;
+}
+
+async function loadEyeByIndex(eyesDir, idx) {
+  // eye files are named eye-XX-description.png; we don't know the description
+  // Try fetching a directory listing isn't possible, so we'll load them via a known map
+  const NAMES = [
+    "open-neutral","open-pupils-left","open-large-pupils","blink-half-top",
+    "blink-closed","sleepy-asymmetric","neutral","angry","looking-right",
+    "squinting","open-looking-up","side-glance","droopy","crossed","small-pupils"
+  ];
+  if (idx >= NAMES.length) return null;
+  return loadImage(`${eyesDir}/eye-${String(idx).padStart(2,'0')}-${NAMES[idx]}.png`);
+}
+
+// ============================================================================
+// Renderer
+// ============================================================================
+class AvatarRenderer {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.W = canvas.width;
+    this.H = canvas.height;
+    this.BG = '#28283a';
+
+    this.personality = null;
+    this.assets = null;
+    this.eyeCtrl = null;
+    this.mouthCtrl = null;
+    this.emoteCtrl = null;
+
+    this.playing = false;
+    this.visemes = [];
+    this.audioStartMs = 0;
+
+    this.globalStartMs = performance.now();
+    this._running = true;
+    this._raf = null;
+
+    this._faceWidth = 430;
+
+    this._render = this._render.bind(this);
+  }
+
+  async applyPersonality(p) {
+    this.personality = p;
+    this.assets = await loadPersonalityAssets(p);
+
+    this.eyeCtrl = new EyeController(p.eye_config);
+    this.mouthCtrl = new MouthController(
+      p.idle_mouth_pools,
+      p.mouth_timing,
+      p.mouth_idle_enabled
+    );
+    this.emoteCtrl = new EmoteController(p.emotes, p.emote_timing);
+
+    // Compute layout
+    const fw = this._faceWidth;
+    const layout = p.face_layout;
+    this._mouthMaxW = fw * layout.mouth_width_ratio;
+    this._mouthMaxH = fw * layout.mouth_height_ratio;
+    this._eyeMaxW = fw * layout.eye_width_ratio;
+    this._eyeMaxH = fw * layout.eye_height_ratio;
+
+    let faceH = fw;
+    if (this.assets.face) {
+      faceH = (this.assets.face.height / this.assets.face.width) * fw;
+    }
+
+    this._faceX = (this.W - fw) / 2;
+    this._faceY = 50;
+    this._faceDH = faceH;
+    this._mouthCX = this._faceX + fw / 2;
+    this._mouthCY = this._faceY + faceH * layout.mouth_y_ratio;
+    this._eyeCX = this._faceX + fw / 2;
+    this._eyeCY = this._faceY + faceH * layout.eye_y_ratio;
+  }
+
+  startPlayback(visemes, audioStartMs) {
+    this.visemes = visemes;
+    this.audioStartMs = audioStartMs;
+    this.playing = true;
+    this.mouthCtrl?.notifySpeaking();
+    this.emoteCtrl?.notifySpeaking();
+  }
+
+  stopPlayback() {
+    this.playing = false;
+    const now = performance.now() - this.globalStartMs;
+    this.mouthCtrl?.notifyIdle(now);
+    this.emoteCtrl?.notifyIdle(now);
+  }
+
+  start() {
+    this._running = true;
+    this._raf = requestAnimationFrame(this._render);
+  }
+
+  stop() {
+    this._running = false;
+    if (this._raf) cancelAnimationFrame(this._raf);
+  }
+
+  _getActiveViseme(elapsedMs) {
+    let active = 0;
+    for (const v of this.visemes) {
+      if (v.offset_ms <= elapsedMs) active = v.id;
+      else break;
+    }
+    return active;
+  }
+
+  _drawImageCentered(img, cx, cy, maxW, maxH, alpha = 1) {
+    if (!img) return;
+    const r = Math.min(maxW / img.width, maxH / img.height);
+    const w = img.width * r;
+    const h = img.height * r;
+    const x = cx - w / 2;
+    const y = cy - h / 2;
+
+    if (alpha < 1) this.ctx.globalAlpha = alpha;
+    this.ctx.drawImage(img, x, y, w, h);
+    if (alpha < 1) this.ctx.globalAlpha = 1;
+  }
+
+  _render() {
+    if (!this._running) return;
+    this._raf = requestAnimationFrame(this._render);
+
+    const ctx = this.ctx;
+    const now = performance.now();
+    const eyeElapsed = now - this.globalStartMs;
+
+    ctx.clearRect(0, 0, this.W, this.H);
+
+    if (!this.assets || !this.assets.face) {
+      ctx.fillStyle = '#666';
+      ctx.font = '16px "Space Mono"';
+      ctx.textAlign = 'center';
+      ctx.fillText('Loading assets...', this.W / 2, this.H / 2);
+      return;
+    }
+
+    // Draw face
+    ctx.drawImage(this.assets.face, this._faceX, this._faceY, this._faceWidth, this._faceDH);
+
+    // Determine speaking state
+    let activeViseme = 0;
+    if (this.playing) {
+      const audioElapsed = now - this.audioStartMs;
+      activeViseme = this._getActiveViseme(audioElapsed);
+    } else {
+      this.mouthCtrl?.notifyIdle(eyeElapsed);
+      this.emoteCtrl?.notifyIdle(eyeElapsed);
+    }
+
+    // Emote updates
+    const availableMouthNames = new Set(Object.keys(this.assets.idleMouths || {}));
+    const emoteActive = this.emoteCtrl?.update(eyeElapsed, this.eyeCtrl, this.mouthCtrl, availableMouthNames) ?? false;
+
+    // Eyes
+    if (this.eyeCtrl && Object.keys(this.assets.eyes).length) {
+      const blend = this.eyeCtrl.getBlend(eyeElapsed);
+      const fromImg = this.assets.eyes[blend.fromIdx];
+      const toImg = this.assets.eyes[blend.toIdx];
+
+      if (blend.t >= 1 || blend.fromIdx === blend.toIdx) {
+        if (toImg) this._drawImageCentered(toImg, this._eyeCX, this._eyeCY, this._eyeMaxW, this._eyeMaxH);
+      } else if (blend.t >= 0.5) {
+        if (toImg) this._drawImageCentered(toImg, this._eyeCX, this._eyeCY, this._eyeMaxW, this._eyeMaxH);
+        if (fromImg && fromImg !== toImg)
+          this._drawImageCentered(fromImg, this._eyeCX, this._eyeCY, this._eyeMaxW, this._eyeMaxH, (1 - blend.t) * 2);
+      } else {
+        if (fromImg) this._drawImageCentered(fromImg, this._eyeCX, this._eyeCY, this._eyeMaxW, this._eyeMaxH);
+        if (toImg && toImg !== fromImg)
+          this._drawImageCentered(toImg, this._eyeCX, this._eyeCY, this._eyeMaxW, this._eyeMaxH, blend.t * 2);
+      }
+    }
+
+    // Mouth
+    if (this.playing) {
+      const img = this.assets.visemes[activeViseme];
+      if (img) this._drawImageCentered(img, this._mouthCX, this._mouthCY, this._mouthMaxW, this._mouthMaxH);
+    } else {
+      const idle = this.mouthCtrl?.getIdleMouth(eyeElapsed, availableMouthNames) ?? { prev: null, cur: null, t: 1 };
+      this._drawIdleMouth(idle.prev, idle.cur, idle.t);
+    }
+
+    // HUD
+    const mouthLabel = this.playing
+      ? (this.personality?.viseme_labels[activeViseme] || '?')
+      : 'idle';
+    const eyeLabel = this.eyeCtrl ? `${this.eyeCtrl._current}(${this.eyeCtrl.stateLabel})` : '-';
+    const state = this.playing ? 'Speaking' : 'Listening';
+    hudEl.textContent = `${state} | Mouth: ${mouthLabel} | Eye: ${eyeLabel}`;
+  }
+
+  _resolveMouthImg(name) {
+    if (name === null) return this.assets.visemes[0] || null;
+    return this.assets.idleMouths[name] || null;
+  }
+
+  _drawIdleMouth(prevName, curName, t) {
+    const prevImg = this._resolveMouthImg(prevName);
+    const curImg = this._resolveMouthImg(curName);
+    const cx = this._mouthCX, cy = this._mouthCY;
+    const mw = this._mouthMaxW, mh = this._mouthMaxH;
+
+    if (t >= 1 || prevName === curName) {
+      if (curImg) this._drawImageCentered(curImg, cx, cy, mw, mh);
+    } else if (t >= 0.5) {
+      if (curImg) this._drawImageCentered(curImg, cx, cy, mw, mh);
+      if (prevImg && prevImg !== curImg) this._drawImageCentered(prevImg, cx, cy, mw, mh, (1 - t) * 2);
+    } else {
+      if (prevImg) this._drawImageCentered(prevImg, cx, cy, mw, mh);
+      if (curImg && curImg !== prevImg) this._drawImageCentered(curImg, cx, cy, mw, mh, t * 2);
+    }
+  }
+}
+
+// ============================================================================
+// Audio Player (Web Audio API for precise timing)
+// ============================================================================
+class AudioPlayer {
+  constructor() {
+    this._ctx = null;
+    this._source = null;
+  }
+
+  _ensureCtx() {
+    if (!this._ctx) this._ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (this._ctx.state === 'suspended') this._ctx.resume();
+  }
+
+  async play(base64Wav, onEnd) {
+    if (!base64Wav) { onEnd?.(); return; }
+    this._ensureCtx();
+
+    const binary = atob(base64Wav);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+    try {
+      const buffer = await this._ctx.decodeAudioData(bytes.buffer);
+      this.stop();
+      this._source = this._ctx.createBufferSource();
+      this._source.buffer = buffer;
+      this._source.connect(this._ctx.destination);
+      this._source.onended = () => {
+        this._source = null;
+        onEnd?.();
+      };
+      this._source.start(0);
+    } catch (e) {
+      console.error('Audio decode error:', e);
+      onEnd?.();
+    }
+  }
+
+  stop() {
+    if (this._source) {
+      try { this._source.stop(); } catch {}
+      this._source = null;
+    }
+  }
+}
+
+// ============================================================================
+// App
+// ============================================================================
+const canvas = document.getElementById('avatar-canvas');
+const hudEl = document.getElementById('hud');
+const statusBadge = document.getElementById('status-badge');
+const statusText = document.getElementById('status-text');
+const personalityGrid = document.getElementById('personality-grid');
+const responseArea = document.getElementById('response-area');
+const textInput = document.getElementById('text-input');
+const sendBtn = document.getElementById('send-btn');
+const micBtn = document.getElementById('mic-btn');
+const micHint = document.getElementById('mic-hint');
+
+const renderer = new AvatarRenderer(canvas);
+const audioPlayer = new AudioPlayer();
+
+let personalities = [];
+let currentPersonality = null;
+let isProcessing = false;
+
+// Mic state
+let mediaRecorder = null;
+let audioChunks = [];
+let micStream = null;
+let isRecording = false;
+let analyserNode = null;
+let micAudioCtx = null;
+
+function setStatus(text, className = '') {
+  statusText.textContent = text;
+  statusBadge.className = 'status-badge ' + className;
+}
+
+function addMessage(text, isUser = false) {
+  const div = document.createElement('div');
+  div.className = 'response-bubble' + (isUser ? ' user' : '');
+  div.innerHTML = `<div class="label">${isUser ? 'You' : currentPersonality?.display_name || 'Avatar'}</div>${escapeHtml(text)}`;
+  responseArea.appendChild(div);
+  responseArea.scrollTop = responseArea.scrollHeight;
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function renderPersonalityGrid() {
+  personalityGrid.innerHTML = '';
+  for (const p of personalities) {
+    const btn = document.createElement('button');
+    btn.className = 'p-btn' + (currentPersonality?.id === p.id ? ' active' : '');
+    btn.innerHTML = `<div class="p-name">${escapeHtml(p.display_name)}</div><div class="p-voice">${escapeHtml(p.azure_voice_name.split('-').pop().replace('Neural',''))}</div>`;
+    btn.onclick = () => selectPersonality(p.id);
+    personalityGrid.appendChild(btn);
+  }
+}
+
+async function selectPersonality(id) {
+  if (isProcessing) return;
+  const p = personalities.find(x => x.id === id);
+  if (!p) return;
+
+  currentPersonality = p;
+  renderPersonalityGrid();
+  setStatus('Loading ' + p.display_name + '...');
+
+  await renderer.applyPersonality(p);
+  setStatus('Ready — ' + p.display_name);
+}
+
+async function sendText() {
+  const text = textInput.value.trim();
+  if (!text || isProcessing) return;
+
+  isProcessing = true;
+  sendBtn.disabled = true;
+  micBtn.disabled = true;
+  textInput.value = '';
+  addMessage(text, true);
+  setStatus('Processing...', 'speaking');
+
+  try {
+    const res = await fetch('/api/pipeline/text', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, personality_id: currentPersonality?.id || 'peter' }),
+    });
+
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    addMessage(data.response_text, false);
+    await playResponse(data);
+  } catch (e) {
+    console.error(e);
+    setStatus('Error: ' + e.message, 'error');
+    addMessage('(Error: ' + e.message + ')', false);
+  } finally {
+    isProcessing = false;
+    sendBtn.disabled = false;
+    micBtn.disabled = false;
+    textInput.focus();
+  }
+}
+
+async function playResponse(data) {
+  if (data.audio_base64) {
+    renderer.startPlayback(data.visemes, performance.now());
+    setStatus('Speaking', 'speaking');
+    await new Promise(resolve => {
+      audioPlayer.play(data.audio_base64, () => {
+        renderer.stopPlayback();
+        setStatus('Ready — ' + (currentPersonality?.display_name || ''), '');
+        resolve();
+      });
+    });
+  } else {
+    setStatus('Ready (no audio)', '');
+  }
+}
+
+// ============================================================================
+// Microphone Recording
+// ============================================================================
+function getMimeType() {
+  // Prefer webm (Chrome/Edge), fall back to ogg (Firefox), then wav
+  const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg', 'audio/wav'];
+  for (const t of types) {
+    if (MediaRecorder.isTypeSupported(t)) return t;
+  }
+  return '';
+}
+
+function getExtFromMime(mime) {
+  if (mime.includes('webm')) return 'webm';
+  if (mime.includes('ogg')) return 'ogg';
+  if (mime.includes('wav')) return 'wav';
+  return 'webm';
+}
+
+async function startRecording() {
+  if (isRecording || isProcessing) return;
+
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (e) {
+    console.error('Mic access denied:', e);
+    setStatus('Microphone access denied', 'error');
+    micHint.textContent = 'Mic access denied — check browser permissions';
+    return;
+  }
+
+  const mimeType = getMimeType();
+  if (!mimeType) {
+    setStatus('No supported audio format', 'error');
+    micStream.getTracks().forEach(t => t.stop());
+    micStream = null;
+    return;
+  }
+
+  audioChunks = [];
+  mediaRecorder = new MediaRecorder(micStream, { mimeType });
+
+  mediaRecorder.ondataavailable = e => {
+    if (e.data.size > 0) audioChunks.push(e.data);
+  };
+
+  mediaRecorder.onstop = async () => {
+    // Clean up stream
+    micStream?.getTracks().forEach(t => t.stop());
+    micStream = null;
+    stopWaveformVis();
+
+    if (audioChunks.length === 0) return;
+
+    const blob = new Blob(audioChunks, { type: mimeType });
+    audioChunks = [];
+
+    if (blob.size < 1000) {
+      setStatus('Recording too short — try again', '');
+      micHint.textContent = '';
+      isProcessing = false;
+      sendBtn.disabled = false;
+      micBtn.disabled = false;
+      return;
+    }
+
+    await sendAudio(blob, mimeType);
+  };
+
+  mediaRecorder.start(250); // collect chunks every 250ms
+  isRecording = true;
+  micBtn.classList.add('recording');
+  micHint.classList.add('recording');
+  setStatus('Recording...', 'speaking');
+  sendBtn.disabled = true;
+  textInput.disabled = true;
+
+  // Duration timer
+  const recStart = Date.now();
+  const timerInterval = setInterval(() => {
+    if (!isRecording) { clearInterval(timerInterval); return; }
+    const sec = ((Date.now() - recStart) / 1000).toFixed(1);
+    micHint.textContent = `Recording... ${sec}s — click mic to stop`;
+  }, 100);
+  micHint.textContent = 'Recording... 0.0s — click mic to stop';
+
+  startWaveformVis();
+}
+
+function stopRecording() {
+  if (!isRecording || !mediaRecorder) return;
+
+  isRecording = false;
+  micBtn.classList.remove('recording');
+  micHint.textContent = 'Processing speech...';
+  micHint.classList.remove('recording');
+  textInput.disabled = false;
+
+  isProcessing = true;
+  micBtn.disabled = true;
+
+  if (mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+  }
+}
+
+async function sendAudio(blob, mimeType) {
+  setStatus('Transcribing...', 'speaking');
+
+  const ext = getExtFromMime(mimeType);
+  const formData = new FormData();
+  formData.append('audio_file', blob, `recording.${ext}`);
+  formData.append('personality_id', currentPersonality?.id || 'peter');
+
+  try {
+    const res = await fetch('/api/pipeline/audio', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+
+    const userText = data.user_text || data.response_text;
+    addMessage('\u{1F3A4} ' + userText, true);
+    addMessage(data.response_text, false);
+    await playResponse(data);
+  } catch (e) {
+    console.error(e);
+    setStatus('Error: ' + e.message, 'error');
+    addMessage('(Error: ' + e.message + ')', false);
+  } finally {
+    isProcessing = false;
+    sendBtn.disabled = false;
+    micBtn.disabled = false;
+    micHint.textContent = '';
+    textInput.focus();
+  }
+}
+
+// ---- Waveform visualization on the mic button ---
+function startWaveformVis() {
+  try {
+    if (!micStream) return;
+    micAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const source = micAudioCtx.createMediaStreamSource(micStream);
+    analyserNode = micAudioCtx.createAnalyser();
+    analyserNode.fftSize = 256;
+    source.connect(analyserNode);
+    drawWaveform();
+  } catch (e) {
+    console.warn('Waveform vis failed:', e);
+  }
+}
+
+function stopWaveformVis() {
+  if (micAudioCtx) {
+    micAudioCtx.close().catch(() => {});
+    micAudioCtx = null;
+  }
+  analyserNode = null;
+}
+
+function drawWaveform() {
+  if (!analyserNode || !isRecording) return;
+  requestAnimationFrame(drawWaveform);
+
+  const data = new Uint8Array(analyserNode.frequencyBinCount);
+  analyserNode.getByteFrequencyData(data);
+
+  // Compute RMS level 0..1
+  let sum = 0;
+  for (let i = 0; i < data.length; i++) sum += data[i];
+  const avg = sum / data.length / 255;
+
+  // Animate the mic button border glow intensity based on volume
+  const glow = 20 + avg * 40;
+  const outerGlow = 40 + avg * 60;
+  micBtn.style.boxShadow = `0 0 ${glow}px var(--accent-glow), 0 0 ${outerGlow}px rgba(255, 107, 74, ${0.1 + avg * 0.2})`;
+}
+
+// ---- Mic button handler ---
+micBtn.onclick = () => {
+  if (isProcessing && !isRecording) return;
+  if (isRecording) {
+    stopRecording();
+  } else {
+    startRecording();
+  }
+};
+
+sendBtn.onclick = sendText;
+textInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendText();
+  }
+});
+
+// --- Init ---
+const hasMicSupport = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+
+async function init() {
+  renderer.start();
+
+  // Mic availability
+  if (!hasMicSupport) {
+    micBtn.disabled = true;
+    micBtn.title = 'Microphone not supported in this browser';
+    micBtn.style.opacity = '0.3';
+  }
+
+  try {
+    const res = await fetch('/api/personalities');
+    personalities = await res.json();
+  } catch (e) {
+    setStatus('Failed to load personalities', 'error');
+    return;
+  }
+
+  renderPersonalityGrid();
+
+  if (personalities.length) {
+    await selectPersonality(personalities.find(p => p.id === 'peter')?.id || personalities[0].id);
+  }
+
+  sendBtn.disabled = false;
+  textInput.focus();
+}
+
+init();
+</script>
+</body>
+</html>
