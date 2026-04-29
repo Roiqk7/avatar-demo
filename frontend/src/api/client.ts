@@ -11,6 +11,7 @@ export async function pipelineText(args: {
   personality_id: string
   llm_backend: LlmBackend
   session_id: string
+  safety_hint_language?: 'en' | 'cs'
 }): Promise<PipelineResponse> {
   const res = await fetch('/api/pipeline/text', {
     method: 'POST',

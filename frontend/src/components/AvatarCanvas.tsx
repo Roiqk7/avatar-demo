@@ -6,13 +6,15 @@ export function AvatarCanvas(props: {
   personality: Personality | null
   onRenderer?: (r: AvatarRenderer | null) => void
   onHud?: (text: string) => void
+  onAvatarClick?: () => void
 }) {
-  const { personality, onRenderer, onHud } = props
+  const { personality, onRenderer, onHud, onAvatarClick } = props
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null)
   const rendererRef = React.useRef<AvatarRenderer | null>(null)
   const latestPersonalityRef = React.useRef<Personality | null>(null)
   const onHudRef = React.useRef(onHud)
   const onRendererRef = React.useRef(onRenderer)
+  const onAvatarClickRef = React.useRef(onAvatarClick)
 
   React.useEffect(() => {
     latestPersonalityRef.current = personality
@@ -27,6 +29,10 @@ export function AvatarCanvas(props: {
   React.useEffect(() => {
     onRendererRef.current = onRenderer
   }, [onRenderer])
+
+  React.useEffect(() => {
+    onAvatarClickRef.current = onAvatarClick
+  }, [onAvatarClick])
 
   // Create renderer once; empty deps so inline callbacks never trigger teardown
   React.useEffect(() => {
@@ -52,6 +58,14 @@ export function AvatarCanvas(props: {
     void r.applyPersonality(personality)
   }, [personality])
 
-  return <canvas id="avatar-canvas" ref={canvasRef} width={600} height={600} />
+  return (
+    <canvas
+      id="avatar-canvas"
+      ref={canvasRef}
+      width={600}
+      height={600}
+      onPointerDown={() => onAvatarClickRef.current?.()}
+    />
+  )
 }
 

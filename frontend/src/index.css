@@ -11,7 +11,7 @@
   --accent-glow:  rgba(59, 79, 228, 0.22);
   --green:        #16a34a;
   --yellow:       #ca8a04;
-  --header-h:     80px;
+  --header-h:     65px;
 }
 
 * {
@@ -21,12 +21,12 @@
 }
 
 html {
-  height: 100vh;
+  height: 100%;
   overflow: hidden;
 }
 
 body {
-  height: 100vh;
+  height: 100%;
   overflow: hidden;
   background:
     radial-gradient(ellipse 75% 60% at 10% 15%, rgba(195, 210, 255, 0.45) 0%, transparent 55%),
@@ -35,6 +35,11 @@ body {
     #f4f6fb;
   color: var(--text);
   font-family: 'Inter', 'Space Mono', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+#root {
+  height: 100%;
+  overflow: hidden;
 }
 
 header {
@@ -62,8 +67,15 @@ header {
   overflow: visible;
 }
 
+.logo-link {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  cursor: pointer;
+}
+
 .logo-img {
-  height: 96px;
+  height: 120px;
   max-width: 360px;
   width: auto;
   display: block;
@@ -100,7 +112,7 @@ header {
 }
 
 .header-subtitle {
-  font-size: 39px;
+  font-size: 43px;
   font-weight: 600;
   color: var(--accent);
   letter-spacing: 0.3px;
@@ -117,17 +129,165 @@ header {
   gap: 0;
 }
 
-@media (max-width: 860px) {
+/* Phone UX: fixed viewport, 40% avatar / 60% chat, options in a bottom sheet.
+   We gate this on small width + portrait to avoid breaking desktop portrait windows. */
+@media (max-width: 900px) and (orientation: portrait) {
+  :root { --header-h: 0px; }
+  header { display: none; }
+
+  /* Mobile-only floating chrome */
+  .mobile-chrome {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    position: fixed;
+    top: calc(10px + env(safe-area-inset-top));
+    left: 12px;
+    right: 12px;
+    z-index: 1200;
+    pointer-events: none; /* allow children to opt-in */
+  }
+
+  .mobile-chrome .logo-link {
+    pointer-events: auto;
+  }
+
+  .mobile-corner-logo {
+    display: block;
+    position: relative;
+    height: 14px;
+    width: auto;
+    opacity: 0.6;
+    pointer-events: auto;
+  }
+
+  .mobile-options-fab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    height: 34px;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(60, 70, 160, 0.14);
+    background: rgba(255, 255, 255, 0.68);
+    backdrop-filter: blur(14px) saturate(1.6);
+    -webkit-backdrop-filter: blur(14px) saturate(1.6);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    box-shadow: 0 10px 30px rgba(60, 70, 160, 0.10);
+    pointer-events: auto;
+  }
+
+  .mobile-sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 24, 50, 0.25);
+    z-index: 400;
+    display: flex;
+    align-items: flex-end;
+    justify-content: stretch;
+  }
+
+  .mobile-sheet {
+    width: 100%;
+    max-height: 72dvh;
+    overflow: auto;
+    border-radius: 18px 18px 0 0;
+    background: rgba(255, 255, 255, 0.86);
+    border-top: 1px solid rgba(255, 255, 255, 0.90);
+    box-shadow: 0 -20px 60px rgba(60, 70, 160, 0.22);
+    backdrop-filter: blur(22px) saturate(1.6);
+    -webkit-backdrop-filter: blur(22px) saturate(1.6);
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+  }
+
+  .mobile-sheet-header {
+    position: sticky;
+    top: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(60, 70, 160, 0.10);
+    background: rgba(255, 255, 255, 0.80);
+    backdrop-filter: blur(18px) saturate(1.6);
+    -webkit-backdrop-filter: blur(18px) saturate(1.6);
+  }
+
+  .mobile-sheet-title {
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .mobile-sheet-close {
+    appearance: none;
+    border: 1px solid rgba(60, 70, 160, 0.14);
+    background: rgba(255, 255, 255, 0.70);
+    border-radius: 10px;
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    color: var(--text);
+    font-size: 16px;
+  }
+
   .main-layout {
     grid-template-columns: 1fr;
-    height: auto;
-    overflow-y: auto;
+    grid-template-rows: 40dvh 60dvh;
+    height: 100dvh;
+    overflow: hidden;
   }
-  html, body { overflow: auto; }
+  html, body, #root { height: 100dvh; overflow: hidden; }
   .sidebar {
     border-left: none !important;
     border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
+
+  /* Desktop sidebar controls are available via the mobile sheet */
+  .desktop-controls { display: none; }
+
+  /* Only the chat transcript should scroll */
+  .response-area {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Keep input above iOS home indicator */
+  .input-area {
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  }
+
+  /* Fit avatar within the 40dvh top pane */
+  .canvas-area {
+    padding: 12px;
+  }
+  #avatar-canvas {
+    width: min(100%, calc(40dvh - 24px));
+    max-height: 100%;
+    height: auto;
+  }
+}
+
+/* Hidden by default; shown on phones via media query */
+.mobile-chrome,
+.mobile-corner-logo,
+.mobile-options-fab {
+  display: none;
 }
 
 .canvas-area {
@@ -555,11 +715,95 @@ header {
   word-break: break-word;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  position: relative;
 }
 
 .response-bubble.user {
   background: rgba(59, 79, 228, 0.07);
   border-color: rgba(59, 79, 228, 0.18);
+}
+
+.msg-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 6px;
+  z-index: 2;
+}
+
+.copy-btn {
+  appearance: none;
+  border: 1px solid rgba(60, 70, 160, 0.14);
+  background: rgba(255, 255, 255, 0.70);
+  border-radius: 999px;
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  opacity: 0;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(60, 70, 160, 0.10);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.response-bubble:hover .copy-btn,
+.response-bubble:focus-within .copy-btn {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.copy-btn:hover {
+  background: rgba(255, 255, 255, 0.86);
+  border-color: rgba(59, 79, 228, 0.28);
+}
+
+.copy-btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.copy-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 79, 228, 0.14), 0 8px 20px rgba(60, 70, 160, 0.12);
+}
+
+.copy-btn.copied {
+  background: rgba(22, 163, 74, 0.10);
+  border-color: rgba(22, 163, 74, 0.22);
+}
+
+.copy-btn .copy-icon {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+}
+
+.copy-btn .copy-icon svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+  opacity: 0.85;
+}
+
+.copy-btn .copy-text {
+  line-height: 1;
+}
+
+/* On touch devices, keep the control faintly visible (no hover). */
+@media (hover: none) {
+  .copy-btn {
+    opacity: 0.9;
+    transform: none;
+  }
 }
 
 .response-bubble .label {

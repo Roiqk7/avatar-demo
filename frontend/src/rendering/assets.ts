@@ -62,6 +62,14 @@ export async function loadPersonalityAssets(p: Personality): Promise<Personality
     if (img) assets.idleMouths[name] = img
   }
 
+  // Optional "special" mouths that may be intentionally excluded from idle pools
+  // (e.g. sad/cry) but still exist on disk for safety/UX moments.
+  for (const name of ['sad2', 'sad', 'cry2', 'cry']) {
+    if (assets.idleMouths[name]) continue
+    const img = await loadImage(`${p.assets.visemes_dir}/viseme-${name}.png`)
+    if (img) assets.idleMouths[name] = img
+  }
+
   return assets
 }
 

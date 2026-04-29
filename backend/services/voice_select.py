@@ -13,6 +13,8 @@ class VoiceSelection:
     candidates: int | None = None
 
 
+ENGLISH_PREFERRED_VOICE: str = "en-US-Adam:DragonHDLatestNeural"
+
 LOCALE_PREFERENCES: dict[str, list[str]] = {
     # Keep common languages explicit; everything else falls back to stable sorting.
     "en": ["en-US", "en-GB", "en-IE", "en-AU", "en-CA"],
@@ -34,6 +36,8 @@ def choose_voice(
 ) -> VoiceSelection:
     """Choose a voice for any detected language using the Azure voice catalog."""
     lang = (detected_language or "").strip().lower()
+    if lang == "en":
+        return VoiceSelection(voice_name=ENGLISH_PREFERRED_VOICE, language=lang, locale="en-US")
     if not lang or catalog is None or not catalog.loaded:
         return VoiceSelection(voice_name=fallback_voice_name, language=lang or None)
 

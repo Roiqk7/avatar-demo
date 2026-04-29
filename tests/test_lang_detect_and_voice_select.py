@@ -2,7 +2,7 @@ import pytest
 
 from backend.services.lang_detect import _parse_translator_detect
 from backend.services.azure_voice_catalog import VoiceInfo
-from backend.services.voice_select import choose_voice
+from backend.services.voice_select import ENGLISH_PREFERRED_VOICE, choose_voice
 
 
 def test_parse_translator_detect_happy_path():
@@ -63,7 +63,7 @@ def test_choose_voice_prefers_male():
         }
 
     sel = choose_voice(detected_language="en", fallback_voice_name="en-US-JennyNeural", catalog=_MixedCatalog())
-    assert sel.voice_name == "en-US-GuyNeural"
+    assert sel.voice_name == ENGLISH_PREFERRED_VOICE
 
 
 def test_choose_voice_falls_back_to_any_gender_when_no_male():

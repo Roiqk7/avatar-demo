@@ -54,7 +54,7 @@ def test_settings_load_defaults(monkeypatch: pytest.MonkeyPatch):
 
     settings = Settings.load()
     assert settings.azure_speech_region == "eastus"
-    assert settings.azure_voice_name == "en-US-GuyNeural"
+    assert settings.azure_voice_name == "en-US-Adam:DragonHDLatestNeural"
     assert settings.azure_translator_key is None
     assert settings.azure_translator_region is None
     assert settings.azure_translator_endpoint == "https://api.cognitive.microsofttranslator.com"

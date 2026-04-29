@@ -11,6 +11,9 @@ export type PipelineResponse = {
   audio_base64: string
   visemes: VisemeOut[]
   duration_ms: number
+  mood?: 'neutral' | 'sad'
+  safety_triggered?: boolean
+  safety_language?: 'en' | 'cs' | null
   detected_language?: string | null
   detected_language_score?: number | null
   voice_used?: string | null

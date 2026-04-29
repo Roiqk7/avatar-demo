@@ -40,7 +40,7 @@ class Settings:
             openai_api_key=os.environ["OPENAI_API_KEY"],
             azure_speech_key=os.environ["AZURE_SPEECH_KEY"],
             azure_speech_region=os.getenv("AZURE_SPEECH_REGION", "eastus"),
-            azure_voice_name=os.getenv("AZURE_VOICE_NAME", "en-US-GuyNeural"),
+            azure_voice_name=os.getenv("AZURE_VOICE_NAME", "en-US-Adam:DragonHDLatestNeural"),
             azure_translator_key=os.getenv("AZURE_TRANSLATOR_KEY", "").strip() or None,
             azure_translator_region=os.getenv("AZURE_TRANSLATOR_REGION", "").strip() or None,
             azure_translator_endpoint=os.getenv(

@@ -33,12 +33,19 @@ from backend.config import Settings
 from backend.log import setup_logging
 from backend.models import PipelineResult, TtsResult
 from backend.personalities import list_personality_ids, load_personality, Personality
+from backend.personalities.llm_baseline import compose_llm_system_prompt
 from backend.services.llm import EchoLlmService, OpenAiChatLlmService
 from backend.services.lang_detect import AzureTranslatorLanguageDetectService
 from backend.services.stt import WhisperSttService
 from backend.services.tts import AzureTtsService
 from backend.services.azure_voice_catalog import AzureSpeechVoiceCatalog
 from backend.services.voice_select import choose_voice
+from backend.safety.slur_filter import (
+    SlurLanguage,
+    compile_slur_regex_by_language,
+    detect_slur_by_language,
+    default_slur_terms_by_language,
+)
 from backend.rendering.animation_config import (
     EYE_PRESETS,
     MOUTH_TIMING_PRESETS,
@@ -71,8 +78,33 @@ _lang_detect: AzureTranslatorLanguageDetectService | None = None
 _voice_catalog: AzureSpeechVoiceCatalog | None = None
 # Maps session_id -> {language_code -> voice_name}; pinned for the lifetime of the process.
 _session_voice_maps: dict[str, dict[str, str]] = {}
+_terms_by_lang = default_slur_terms_by_language()
+# Backwards-compatible override/extension: comma-separated literal terms.
+# These are added to the English bucket (language-agnostic demo override).
+_extra_terms = [t.strip() for t in (os.environ.get("AVATAR_DEMO_SLUR_TERMS") or "").split(",") if t.strip()]
+if _extra_terms:
+    _terms_by_lang = {**_terms_by_lang, "en": [*_terms_by_lang.get("en", []), *_extra_terms]}
+_slur_regex_by_lang = compile_slur_regex_by_language(_terms_by_lang)
 
 ASSETS_DIR = PROJECT_ROOT / "assets"
+
+KIND_SYSTEM_PROMPT_BY_LANG: dict[SlurLanguage, str] = {
+    "en": (
+        "You are a friendly avatar assistant. The user used insulting or hateful language.\n"
+        "Respond briefly, calmly, and firmly. Ask them to be kind and to rephrase without insults.\n"
+        "Do not repeat or quote slurs. Keep it to 1–2 sentences."
+    ),
+    "cs": (
+        "Jsi přátelský avatar asistent. Uživatel použil urážlivý nebo nenávistný jazyk.\n"
+        "Odpověz stručně, klidně a pevně. Požádej o slušnost a ať to přeformuluje bez urážek.\n"
+        "Neopakuj ani necituj nadávky. 1–2 věty."
+    ),
+}
+
+KIND_FALLBACK_TEXT_BY_LANG: dict[SlurLanguage, str] = {
+    "en": "Please be kind. If you're upset, tell me what's going on without insults.",
+    "cs": "Prosím, buď slušný. Pokud jsi naštvaný, řekni mi, co se děje, bez urážek.",
+}
 
 
 # --- Startup ---
@@ -167,6 +199,7 @@ class TextRequest(BaseModel):
     personality_id: str = "peter"
     llm_backend: LlmBackend = "echo"
     session_id: str = ""
+    safety_hint_language: SlurLanguage | None = None
 
 
 class VisemeOut(BaseModel):
@@ -180,6 +213,9 @@ class PipelineResponse(BaseModel):
     audio_base64: str
     visemes: list[VisemeOut]
     duration_ms: float
+    mood: Literal["neutral", "sad"] = "neutral"
+    safety_triggered: bool = False
+    safety_language: SlurLanguage | None = None
     detected_language: str | None = None
     detected_language_score: float | None = None
     voice_used: str | None = None
@@ -301,17 +337,37 @@ def pipeline_text(req: TextRequest):
 
     p = load_personality(req.personality_id)
     fallback_voice = _settings.azure_voice_name
-    system_prompt = p.llm_system_prompt or _settings.llm_system_prompt
+    prompt_body = (p.llm_system_prompt or _settings.llm_system_prompt).strip()
+    system_prompt = compose_llm_system_prompt(prompt_body)
 
-    llm = _get_llm(req.llm_backend, system_prompt=system_prompt)
-    llm_result = llm.generate(req.text)
+    slur_hit = detect_slur_by_language(req.text, regex_by_lang=_slur_regex_by_lang)
+    if slur_hit is not None:
+        safety_lang: SlurLanguage = slur_hit.language
+        # Prefer frontend hint only when it matches a supported language.
+        if req.safety_hint_language in ("en", "cs"):
+            safety_lang = req.safety_hint_language
 
-    detected = _lang_detect.detect(llm_result.response) if _lang_detect is not None else None
+        if req.llm_backend == "openai":
+            llm = _get_llm(req.llm_backend, system_prompt=KIND_SYSTEM_PROMPT_BY_LANG[safety_lang])
+            llm_result = llm.generate(req.text)
+            response_text = llm_result.response
+        else:
+            response_text = KIND_FALLBACK_TEXT_BY_LANG[safety_lang]
+        safety_triggered = True
+        mood: Literal["neutral", "sad"] = "sad"
+    else:
+        llm = _get_llm(req.llm_backend, system_prompt=system_prompt)
+        llm_result = llm.generate(req.text)
+        response_text = llm_result.response
+        safety_triggered = False
+        mood = "neutral"
+
+    detected = _lang_detect.detect(response_text) if _lang_detect is not None else None
     voice = _resolve_voice(req.session_id, detected.language if detected else None, fallback_voice)
 
     tts = _get_tts(voice)
     try:
-        tts_result = tts.synthesize(llm_result.response)
+        tts_result = tts.synthesize(response_text)
     except Exception as e:
         logger.error("TTS failed: %s", e)
         tts_result = TtsResult(audio_data=b"", visemes=[], duration_ms=0.0)
@@ -320,10 +376,13 @@ def pipeline_text(req: TextRequest):
 
     return PipelineResponse(
         user_text=req.text,
-        response_text=llm_result.response,
+        response_text=response_text,
         audio_base64=audio_b64,
         visemes=[VisemeOut(id=v.id, offset_ms=v.offset_ms) for v in tts_result.visemes],
         duration_ms=tts_result.duration_ms,
+        mood=mood,
+        safety_triggered=safety_triggered,
+        safety_language=slur_hit.language if slur_hit is not None else None,
         detected_language=detected.language if detected else None,
         detected_language_score=detected.score if detected else None,
         voice_used=voice,
@@ -351,17 +410,33 @@ async def pipeline_audio(
 
     p = load_personality(personality_id)
     fallback_voice = _settings.azure_voice_name
-    system_prompt = p.llm_system_prompt or _settings.llm_system_prompt
+    prompt_body = (p.llm_system_prompt or _settings.llm_system_prompt).strip()
+    system_prompt = compose_llm_system_prompt(prompt_body)
 
-    llm = _get_llm(llm_backend, system_prompt=system_prompt)
-    llm_result = llm.generate(stt_result.text)
+    slur_hit = detect_slur_by_language(stt_result.text, regex_by_lang=_slur_regex_by_lang)
+    if slur_hit is not None:
+        safety_lang = slur_hit.language
+        if llm_backend == "openai":
+            llm = _get_llm(llm_backend, system_prompt=KIND_SYSTEM_PROMPT_BY_LANG[safety_lang])
+            llm_result = llm.generate(stt_result.text)
+            response_text = llm_result.response
+        else:
+            response_text = KIND_FALLBACK_TEXT_BY_LANG[safety_lang]
+        safety_triggered = True
+        mood: Literal["neutral", "sad"] = "sad"
+    else:
+        llm = _get_llm(llm_backend, system_prompt=system_prompt)
+        llm_result = llm.generate(stt_result.text)
+        response_text = llm_result.response
+        safety_triggered = False
+        mood = "neutral"
 
-    detected = _lang_detect.detect(llm_result.response) if _lang_detect is not None else None
+    detected = _lang_detect.detect(response_text) if _lang_detect is not None else None
     voice = _resolve_voice(session_id, detected.language if detected else None, fallback_voice)
 
     tts = _get_tts(voice)
     try:
-        tts_result = tts.synthesize(llm_result.response)
+        tts_result = tts.synthesize(response_text)
     except Exception as e:
         logger.error("TTS failed: %s", e)
         tts_result = TtsResult(audio_data=b"", visemes=[], duration_ms=0.0)
@@ -370,10 +445,13 @@ async def pipeline_audio(
 
     return PipelineResponse(
         user_text=stt_result.text,
-        response_text=llm_result.response,
+        response_text=response_text,
         audio_base64=audio_b64,
         visemes=[VisemeOut(id=v.id, offset_ms=v.offset_ms) for v in tts_result.visemes],
         duration_ms=tts_result.duration_ms,
+        mood=mood,
+        safety_triggered=safety_triggered,
+        safety_language=slur_hit.language if slur_hit is not None else None,
         detected_language=detected.language if detected else None,
         detected_language_score=detected.score if detected else None,
         voice_used=voice,
