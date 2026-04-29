@@ -58,7 +58,6 @@ def main() -> None:
     personality = load_personality(args.personality)
     logger.info("Personality: %s (%s)", personality.id, personality.display_name)
 
-    voice_name = personality.azure_voice_name or settings.azure_voice_name
     prompt_body = (personality.llm_system_prompt or settings.llm_system_prompt).strip()
     system_prompt = compose_llm_system_prompt(prompt_body)
 
@@ -78,7 +77,7 @@ def main() -> None:
     tts = AzureTtsService(
         speech_key=settings.azure_speech_key,
         speech_region=settings.azure_speech_region,
-        voice_name=voice_name,
+        voice_name=settings.azure_voice_name,
     )
 
     pipeline = Pipeline(stt=stt, llm=llm, tts=tts)

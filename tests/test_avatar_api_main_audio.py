@@ -285,7 +285,6 @@ def test_main_constructs_pipeline_and_runs(monkeypatch: pytest.MonkeyPatch):
     fake_personality = types.SimpleNamespace(
         id="peter",
         display_name="Peter",
-        azure_voice_name="",
         llm_system_prompt="",
     )
     settings = types.SimpleNamespace(
@@ -342,7 +341,6 @@ def test_main_echo_llm_skips_openai_service(monkeypatch: pytest.MonkeyPatch):
     fake_personality = types.SimpleNamespace(
         id="peter",
         display_name="Peter",
-        azure_voice_name="",
         llm_system_prompt="sys",
     )
     settings = types.SimpleNamespace(

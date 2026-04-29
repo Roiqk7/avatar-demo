@@ -5,17 +5,43 @@ Browser-based avatar renderer using HTML5 Canvas + FastAPI backend.
 ## Setup
 
 ```bash
-# Existing setup
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env   # fill in your API keys
-
-# Web dependencies
-pip install -r requirements_web.txt
 ```
 
 ## Running
+
+### Option A: Dev mode (recommended)
+
+Run the Python backend:
+
+```bash
+python web_server.py
+```
+
+In a second terminal, run the React dev server:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open **http://localhost:5173** in your browser.
+
+### Option B: Build + serve from FastAPI
+
+```bash
+cd frontend
+npm install
+npm run build
+cd ..
+python web_server.py
+```
+
+Open **http://localhost:8000** in your browser.
 
 ```bash
 python web_server.py
@@ -37,9 +63,24 @@ Browser (Canvas + Web Audio)  ←→  FastAPI  ←→  Existing Pipeline (STT/LL
 - `POST /api/pipeline/audio` — runs audio → STT → LLM → TTS (for mic input)
 - `/assets/*` — serves sprite PNGs directly to the browser
 
-### Frontend (`static/index.html`)
+## Auto voice selection by detected language (cs/sk/en)
 
-A single self-contained HTML file with:
+If you configure Azure Translator in `.env`, the backend will **detect language from the text being spoken** (the LLM response) and choose a preferred Azure TTS voice for:
+
+- Czech (`cs`)
+- Slovak (`sk`)
+- English (`en`)
+
+This selection currently **overrides** the personality voice.
+
+Required `.env` vars:
+
+- `AZURE_TRANSLATOR_KEY`
+- `AZURE_TRANSLATOR_REGION` (recommended)
+
+### Frontend (`frontend/`)
+
+React + Vite app that contains:
 
 - **Canvas renderer** — composites face, eyes, and mouth sprites at 60fps
 - **EyeController** — JS port of the Python state machine: blinks, micro-glances, long glances, expression glances, goofy sequences
@@ -64,16 +105,13 @@ The existing Python backend code (`backend/`) is **completely unchanged**. The w
 
 ## File placement
 
-Place both files at the **project root** (next to `backend/`, `tests/`, `requirements.txt`):
-
 ```
 project-root/
 ├── backend/          # existing — untouched
 ├── tests/            # existing — untouched
-├── static/
-│   └── index.html    # ← new
-├── web_server.py     # ← new
-├── requirements_web.txt  # ← new
-├── requirements.txt  # existing
-└── .env              # existing
+├── frontend/         # React/Vite app
+├── static/           # legacy single-file frontend (still present)
+├── web_server.py
+├── requirements.txt
+└── .env
 ```

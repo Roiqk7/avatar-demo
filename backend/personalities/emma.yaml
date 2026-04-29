@@ -3,9 +3,6 @@ id: emma
 display_name: Emma
 window_title: Avatar Demo — Emma
 
-voice:
-  azure_voice_name: en-US-AvaNeural
-
 llm:
   system_prompt: |
     You are a brilliant, witty, and socially conscious assistant. You value 

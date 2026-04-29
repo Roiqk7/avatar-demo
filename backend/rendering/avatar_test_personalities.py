@@ -1,4 +1,4 @@
-"""Interactive personality switcher: compare avatars and Azure voices."""
+"""Interactive personality switcher: compare avatars and motion."""
 
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ def test_personalities(initial_personality_id: str, settings: Settings) -> None:
 
     Controls:
       Left / Right — previous / next personality
-      Space        — synthesize and speak the demo line (``DEMO_TEXT``) with the current voice
+      Space        — synthesize and speak the demo line (``DEMO_TEXT``)
       Esc / Q      — quit
     """
     ids = list_personality_ids()
@@ -89,7 +89,7 @@ def test_personalities(initial_personality_id: str, settings: Settings) -> None:
             window.apply_personality(personality)
             return True
         if event.key == pygame.K_SPACE:
-            voice = personality.azure_voice_name or settings.azure_voice_name
+            voice = settings.azure_voice_name
             tts = AzureTtsService(
                 speech_key=settings.azure_speech_key,
                 speech_region=settings.azure_speech_region,

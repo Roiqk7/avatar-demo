@@ -18,7 +18,7 @@ is made transparent.  This preserves interior yellow-ish content (golden
 eye rings, eyelid shading) that a naive color-key would destroy.
 
 Usage:
-    cd backend/assets/eyes
+    cd assets/eyes
     python convert.py
 
 Overwrites any existing eye-*.png files in the current directory.

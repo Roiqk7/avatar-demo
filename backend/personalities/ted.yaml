@@ -12,9 +12,6 @@ id: ted
 display_name: Ted
 window_title: Avatar Demo — Ted
 
-voice:
-  azure_voice_name: en-US-RogerNeural
-
 llm:
   system_prompt: |
     You are a dependable, polite, and helpful assistant. Your tone is unfailingly 

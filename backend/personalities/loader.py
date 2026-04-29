@@ -3,7 +3,6 @@
 Quick checklist for a new client avatar (copy ``_template.yaml``)::
 
     id, display_name, window_title (optional)
-    voice.azure_voice_name
     llm.system_prompt  (body only; shared header/footer added at runtime in main)
     assets.face  — path under assets/, e.g. faces/my_base.png
 
@@ -267,7 +266,6 @@ def load_personality(person_id: str) -> Personality:
     display_name = str(data.get("display_name") or key.title())
     window_title = str(data.get("window_title") or f"Avatar Demo — {display_name}")
 
-    voice = data.get("voice") or {}
     llm = data.get("llm") or {}
     assets = data.get("assets") or {}
     anim = data.get("animation") or {}
@@ -291,7 +289,6 @@ def load_personality(person_id: str) -> Personality:
         id=key,
         display_name=display_name,
         window_title=window_title,
-        azure_voice_name=str(voice.get("azure_voice_name") or "").strip(),
         llm_system_prompt=str(llm.get("system_prompt") or "").strip(),
         assets=_resolve_assets(assets, personality_key=key),
         idle_mouth_pools=_mouth_pools(data, key),

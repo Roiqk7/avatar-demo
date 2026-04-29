@@ -5,9 +5,6 @@ id: clientname
 display_name: Client Name
 window_title: Avatar Demo — Client Name
 
-voice:
-  azure_voice_name: en-US-AvaNeural
-
 llm:
   # Body only — shared Signosoft header + safety footer are added automatically in main.
   system_prompt: |

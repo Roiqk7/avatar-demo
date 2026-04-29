@@ -33,7 +33,6 @@ class Personality:
     id: str
     display_name: str
     window_title: str
-    azure_voice_name: str
     llm_system_prompt: str  # body only; main wraps with shared LLM header/footer
     assets: AssetPaths
     idle_mouth_pools: MouthIdlePools

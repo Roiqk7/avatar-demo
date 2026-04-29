@@ -3,76 +3,77 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Avatar Demo</title>
+<title>Signosoft Avatar</title>
+<link rel="icon" type="image/x-icon" href="/static/logo.ico">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #1a1a24;
-  --bg2: #222233;
-  --bg3: #2a2a3d;
-  --surface: #30304a;
-  --border: #3d3d5c;
-  --text: #e8e8f0;
-  --text-dim: #8888aa;
-  --accent: #ff6b4a;
-  --accent2: #ff8f73;
-  --accent-glow: rgba(255, 107, 74, 0.25);
-  --green: #4ecb71;
-  --yellow: #ffd04a;
+  --bg:           #f4f6fb;
+  --glass:        rgba(255, 255, 255, 0.70);
+  --glass-btn:    rgba(255, 255, 255, 0.60);
+  --border:       rgba(60, 70, 160, 0.10);
+  --border-hi:    rgba(255, 255, 255, 0.85);
+  --text:         #1a1d2e;
+  --text-dim:     #6b7897;
+  --accent:       #3b4fe4;
+  --accent2:      #5a6ef7;
+  --accent-glow:  rgba(59, 79, 228, 0.22);
+  --green:        #16a34a;
+  --yellow:       #ca8a04;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: 'Space Mono', monospace;
-  min-height: 100vh;
-  overflow-x: hidden;
-}
+html { height: 100vh; overflow: hidden; }
 
-.grain {
-  position: fixed; inset: 0; pointer-events: none; z-index: 9999;
-  opacity: 0.03;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+body {
+  height: 100vh;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 75% 60% at 10% 15%, rgba(195, 210, 255, 0.45) 0%, transparent 55%),
+    radial-gradient(ellipse 55% 50% at 90% 85%, rgba(210, 200, 255, 0.35) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 40% at 50% 50%, rgba(200, 225, 255, 0.20) 0%, transparent 70%),
+    #f4f6fb;
+  color: var(--text);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 header {
-  padding: 20px 32px;
+  height: 65px;
+  padding: 0 32px;
   display: flex; align-items: center; justify-content: space-between;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg2);
+  background: rgba(255, 255, 255, 0.70);
+  backdrop-filter: blur(28px) saturate(1.8);
+  -webkit-backdrop-filter: blur(28px) saturate(1.8);
+  border-bottom: 1px solid rgba(60, 70, 160, 0.09);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 2px 16px rgba(60, 70, 160, 0.05);
+  position: sticky; top: 0; z-index: 100;
 }
 
 .logo {
-  font-family: 'Syne', sans-serif;
-  font-weight: 800;
-  font-size: 22px;
-  letter-spacing: -0.5px;
-  display: flex; align-items: center; gap: 10px;
+  display: flex;
+  align-items: center;
 }
 
-.logo-dot {
-  width: 10px; height: 10px; border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 12px var(--accent-glow);
-  animation: pulse-dot 2s ease-in-out infinite;
-}
-
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.6; transform: scale(0.85); }
+.logo-img {
+  height: 36px;
+  width: auto;
+  display: block;
+  filter: brightness(0) invert(1) opacity(0.92);
 }
 
 .status-badge {
   font-size: 11px;
-  padding: 4px 10px;
+  font-weight: 500;
+  padding: 5px 12px;
   border-radius: 20px;
-  background: var(--bg3);
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(60, 70, 160, 0.12);
   color: var(--text-dim);
   display: flex; align-items: center; gap: 6px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .status-badge .dot {
@@ -81,15 +82,15 @@ header {
 }
 
 .status-badge.speaking .dot { background: var(--accent); }
-.status-badge.error .dot { background: #ff4444; }
+.status-badge.error .dot { background: #ef4444; }
 
 .main-layout {
   display: grid;
   grid-template-columns: 1fr 360px;
-  max-width: 1200px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
   gap: 0;
-  min-height: calc(100vh - 65px);
+  height: calc(100vh - 65px);
 }
 
 @media (max-width: 860px) {
@@ -102,42 +103,123 @@ header {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 20px;
+  padding: 20px;
   position: relative;
+  overflow: hidden;
+}
+
+.canvas-area::after {
+  content: '';
+  position: absolute;
+  inset: 15%;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.8s ease;
+  pointer-events: none;
+  z-index: 0;
+}
+.canvas-area.speaking::after {
+  opacity: 1;
+  animation: avatar-breathe 2.2s ease-in-out infinite;
+}
+@keyframes avatar-breathe {
+  0%, 100% { transform: scale(0.90); opacity: 0.5; }
+  50%       { transform: scale(1.10); opacity: 1; }
 }
 
 #avatar-canvas {
-  border-radius: 16px;
-  background: #28283a;
-  box-shadow:
-    0 4px 24px rgba(0,0,0,0.4),
-    inset 0 1px 0 rgba(255,255,255,0.04);
+  background: transparent;
   image-rendering: auto;
+  width: min(100%, calc(100vh - 120px));
+  aspect-ratio: 1 / 1;
+  position: relative;
+  z-index: 1;
 }
 
-.hud {
-  margin-top: 16px;
+.avatar-debug {
+  margin-top: 14px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.debug-chip {
   font-size: 11px;
+  font-weight: 500;
+  font-family: 'Inter', sans-serif;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.60);
+  border: 1px solid var(--border);
   color: var(--text-dim);
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.debug-chip.active {
+  border-color: rgba(59, 79, 228, 0.45);
+  color: var(--accent);
+  background: rgba(59, 79, 228, 0.08);
+}
+
+.llm-toggle {
+  display: flex;
+  gap: 8px;
+}
+
+.llm-btn {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.60);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px;
+  color: var(--text-dim);
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s;
   text-align: center;
-  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.llm-btn:hover {
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(59, 79, 228, 0.30);
+  color: var(--text);
+}
+
+.llm-btn.active {
+  border-color: var(--accent);
+  background: rgba(59, 79, 228, 0.09);
+  color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(59, 79, 228, 0.15), 0 0 20px rgba(59, 79, 228, 0.08);
 }
 
 .sidebar {
-  border-left: 1px solid var(--border);
-  background: var(--bg2);
+  border-left: 1px solid rgba(60, 70, 160, 0.09);
+  background: rgba(255, 255, 255, 0.62);
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.88);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .section {
   padding: 20px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid rgba(60, 70, 160, 0.08);
 }
 
 .section-title {
-  font-family: 'Syne', sans-serif;
-  font-weight: 700;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 1.5px;
@@ -152,28 +234,33 @@ header {
 }
 
 .p-btn {
-  background: var(--bg3);
-  border: 1.5px solid var(--border);
-  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.60);
+  border: 1px solid var(--border);
+  border-radius: 12px;
   padding: 10px;
   color: var(--text);
-  font-family: 'Space Mono', monospace;
+  font-family: 'Inter', sans-serif;
   font-size: 12px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.18s;
   text-align: center;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
-.p-btn:hover { border-color: var(--accent2); background: var(--surface); }
+.p-btn:hover {
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(59, 79, 228, 0.30);
+}
 .p-btn.active {
   border-color: var(--accent);
-  background: rgba(255, 107, 74, 0.1);
-  box-shadow: 0 0 16px var(--accent-glow);
+  background: rgba(59, 79, 228, 0.09);
+  box-shadow: 0 0 0 1px rgba(59, 79, 228, 0.15), 0 0 20px rgba(59, 79, 228, 0.08);
 }
 
 .p-btn .p-name {
-  font-weight: 700;
-  font-family: 'Syne', sans-serif;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
   font-size: 13px;
 }
 
@@ -186,7 +273,7 @@ header {
 .input-area {
   padding: 20px;
   margin-top: auto;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid rgba(60, 70, 160, 0.08);
 }
 
 .input-row {
@@ -196,40 +283,47 @@ header {
 
 #text-input {
   flex: 1;
-  background: var(--bg);
-  border: 1.5px solid var(--border);
-  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--border);
+  border-radius: 12px;
   padding: 12px 14px;
   color: var(--text);
-  font-family: 'Space Mono', monospace;
+  font-family: 'Inter', sans-serif;
   font-size: 13px;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.18s, box-shadow 0.18s;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
-#text-input:focus { border-color: var(--accent); }
+#text-input:focus {
+  border-color: rgba(59, 79, 228, 0.45);
+  box-shadow: 0 0 0 3px rgba(59, 79, 228, 0.09);
+}
 
 #text-input::placeholder { color: var(--text-dim); }
 
 .send-btn {
   background: var(--accent);
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
   width: 48px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.15s;
+  box-shadow: 0 2px 12px rgba(59, 79, 228, 0.30);
 }
 
-.send-btn:hover { background: var(--accent2); transform: scale(1.04); }
+.send-btn:hover { background: var(--accent2); transform: scale(1.04); box-shadow: 0 4px 18px rgba(59, 79, 228, 0.40); }
 .send-btn:active { transform: scale(0.96); }
 
 .send-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: not-allowed;
   transform: none;
+  box-shadow: none;
 }
 
 .send-btn svg { fill: white; width: 20px; height: 20px; }
@@ -254,34 +348,39 @@ header {
 }
 
 .mic-btn {
-  background: var(--bg3);
-  border: 1.5px solid var(--border);
-  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.60);
+  border: 1px solid var(--border);
+  border-radius: 12px;
   width: 48px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s;
+  transition: all 0.18s;
   position: relative;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
-.mic-btn:hover { border-color: var(--accent2); background: var(--surface); }
+.mic-btn:hover {
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(59, 79, 228, 0.30);
+}
 
 .mic-btn.recording {
-  border-color: var(--accent);
-  background: rgba(255, 107, 74, 0.15);
-  box-shadow: 0 0 20px var(--accent-glow), 0 0 40px rgba(255, 107, 74, 0.1);
+  border-color: rgba(59, 79, 228, 0.65);
+  background: rgba(59, 79, 228, 0.09);
+  box-shadow: 0 0 0 2px rgba(59, 79, 228, 0.18), 0 0 24px rgba(59, 79, 228, 0.12);
   animation: mic-pulse 1.5s ease-in-out infinite;
 }
 
 @keyframes mic-pulse {
-  0%, 100% { box-shadow: 0 0 20px var(--accent-glow), 0 0 40px rgba(255, 107, 74, 0.1); }
-  50% { box-shadow: 0 0 28px var(--accent-glow), 0 0 56px rgba(255, 107, 74, 0.18); }
+  0%, 100% { box-shadow: 0 0 0 2px rgba(59, 79, 228, 0.18), 0 0 24px rgba(59, 79, 228, 0.12); }
+  50%       { box-shadow: 0 0 0 3px rgba(59, 79, 228, 0.28), 0 0 36px rgba(59, 79, 228, 0.22); }
 }
 
 .mic-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: not-allowed;
   animation: none;
 }
@@ -303,20 +402,22 @@ header {
 }
 
 .response-bubble {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(60, 70, 160, 0.10);
+  border-radius: 14px;
   padding: 14px 16px;
   font-size: 13px;
   line-height: 1.6;
   color: var(--text);
   margin-bottom: 10px;
   animation: fadeIn 0.3s ease;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .response-bubble.user {
-  background: rgba(255, 107, 74, 0.08);
-  border-color: rgba(255, 107, 74, 0.2);
+  background: rgba(59, 79, 228, 0.07);
+  border-color: rgba(59, 79, 228, 0.18);
 }
 
 .response-bubble .label {
@@ -350,12 +451,10 @@ header {
 </style>
 </head>
 <body>
-<div class="grain"></div>
 
 <header>
   <div class="logo">
-    <div class="logo-dot"></div>
-    Avatar Demo
+    <img src="/static/logo.png" alt="Signosoft" class="logo-img">
   </div>
   <div class="status-badge" id="status-badge">
     <div class="dot"></div>
@@ -365,14 +464,27 @@ header {
 
 <div class="main-layout">
   <div class="canvas-area">
-    <canvas id="avatar-canvas" width="600" height="600"></canvas>
-    <div class="hud" id="hud">Loading assets...</div>
+    <canvas id="avatar-canvas" width="1200" height="1200"></canvas>
+    <div class="avatar-debug" id="avatar-debug">
+      <span class="debug-chip" id="dbg-state">state: —</span>
+      <span class="debug-chip" id="dbg-mouth">mouth: —</span>
+      <span class="debug-chip" id="dbg-eye">eye: —</span>
+      <span class="debug-chip" id="dbg-lang">lang: —</span>
+    </div>
   </div>
 
   <div class="sidebar">
     <div class="section">
       <div class="section-title">Personality</div>
       <div class="personality-grid" id="personality-grid"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">LLM Backend</div>
+      <div class="llm-toggle">
+        <button class="llm-btn active" id="llm-echo">Echo</button>
+        <button class="llm-btn" id="llm-openai">OpenAI</button>
+      </div>
     </div>
 
     <div class="response-area" id="response-area"></div>
@@ -818,7 +930,7 @@ class AvatarRenderer {
     this.ctx = canvas.getContext('2d');
     this.W = canvas.width;
     this.H = canvas.height;
-    this.BG = '#28283a';
+    this.BG = '#090d1e';
 
     this.personality = null;
     this.assets = null;
@@ -834,7 +946,7 @@ class AvatarRenderer {
     this._running = true;
     this._raf = null;
 
-    this._faceWidth = 430;
+    this._faceWidth = Math.round(this.W * 0.717);
 
     this._render = this._render.bind(this);
   }
@@ -865,7 +977,7 @@ class AvatarRenderer {
     }
 
     this._faceX = (this.W - fw) / 2;
-    this._faceY = 50;
+    this._faceY = Math.round(this.H * 0.083);
     this._faceDH = faceH;
     this._mouthCX = this._faceX + fw / 2;
     this._mouthCY = this._faceY + faceH * layout.mouth_y_ratio;
@@ -983,13 +1095,14 @@ class AvatarRenderer {
       this._drawIdleMouth(idle.prev, idle.cur, idle.t);
     }
 
-    // HUD
-    const mouthLabel = this.playing
-      ? (this.personality?.viseme_labels[activeViseme] || '?')
-      : 'idle';
-    const eyeLabel = this.eyeCtrl ? `${this.eyeCtrl._current}(${this.eyeCtrl.stateLabel})` : '-';
-    const state = this.playing ? 'Speaking' : 'Listening';
-    hudEl.textContent = `${state} | Mouth: ${mouthLabel} | Eye: ${eyeLabel}`;
+    // Debug chips
+    const speaking = this.playing;
+    const mouthLabel = speaking ? (this.personality?.viseme_labels[activeViseme] || '?') : 'idle';
+    const eyeLabel = this.eyeCtrl ? `${this.eyeCtrl._current} (${this.eyeCtrl.stateLabel})` : '—';
+    dbgState.textContent = `state: ${speaking ? 'speaking' : 'listening'}`;
+    dbgState.classList.toggle('active', speaking);
+    dbgMouth.textContent = `mouth: ${mouthLabel}`;
+    dbgEye.textContent   = `eye: ${eyeLabel}`;
   }
 
   _resolveMouthImg(name) {
@@ -1066,15 +1179,21 @@ class AudioPlayer {
 // App
 // ============================================================================
 const canvas = document.getElementById('avatar-canvas');
-const hudEl = document.getElementById('hud');
+const dbgState = document.getElementById('dbg-state');
+const dbgMouth = document.getElementById('dbg-mouth');
+const dbgEye   = document.getElementById('dbg-eye');
+const dbgLang  = document.getElementById('dbg-lang');
 const statusBadge = document.getElementById('status-badge');
 const statusText = document.getElementById('status-text');
+const canvasArea = document.querySelector('.canvas-area');
 const personalityGrid = document.getElementById('personality-grid');
 const responseArea = document.getElementById('response-area');
 const textInput = document.getElementById('text-input');
 const sendBtn = document.getElementById('send-btn');
 const micBtn = document.getElementById('mic-btn');
 const micHint = document.getElementById('mic-hint');
+const llmEchoBtn   = document.getElementById('llm-echo');
+const llmOpenaiBtn = document.getElementById('llm-openai');
 
 const renderer = new AvatarRenderer(canvas);
 const audioPlayer = new AudioPlayer();
@@ -1082,6 +1201,18 @@ const audioPlayer = new AudioPlayer();
 let personalities = [];
 let currentPersonality = null;
 let isProcessing = false;
+let llmBackend = 'echo';
+
+llmEchoBtn.onclick = () => {
+  llmBackend = 'echo';
+  llmEchoBtn.classList.add('active');
+  llmOpenaiBtn.classList.remove('active');
+};
+llmOpenaiBtn.onclick = () => {
+  llmBackend = 'openai';
+  llmOpenaiBtn.classList.add('active');
+  llmEchoBtn.classList.remove('active');
+};
 
 // Mic state
 let mediaRecorder = null;
@@ -1094,6 +1225,7 @@ let micAudioCtx = null;
 function setStatus(text, className = '') {
   statusText.textContent = text;
   statusBadge.className = 'status-badge ' + className;
+  canvasArea.classList.toggle('speaking', className === 'speaking');
 }
 
 function addMessage(text, isUser = false) {
@@ -1115,7 +1247,7 @@ function renderPersonalityGrid() {
   for (const p of personalities) {
     const btn = document.createElement('button');
     btn.className = 'p-btn' + (currentPersonality?.id === p.id ? ' active' : '');
-    btn.innerHTML = `<div class="p-name">${escapeHtml(p.display_name)}</div><div class="p-voice">${escapeHtml(p.azure_voice_name.split('-').pop().replace('Neural',''))}</div>`;
+    btn.innerHTML = `<div class="p-name">${escapeHtml(p.display_name)}</div>`;
     btn.onclick = () => selectPersonality(p.id);
     personalityGrid.appendChild(btn);
   }
@@ -1149,11 +1281,12 @@ async function sendText() {
     const res = await fetch('/api/pipeline/text', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, personality_id: currentPersonality?.id || 'peter' }),
+      body: JSON.stringify({ text, personality_id: currentPersonality?.id || 'peter', llm_backend: llmBackend }),
     });
 
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
+    dbgLang.textContent = `lang: ${data.detected_language || '—'}`;
     addMessage(data.response_text, false);
     await playResponse(data);
   } catch (e) {
@@ -1297,6 +1430,7 @@ async function sendAudio(blob, mimeType) {
   const formData = new FormData();
   formData.append('audio_file', blob, `recording.${ext}`);
   formData.append('personality_id', currentPersonality?.id || 'peter');
+  formData.append('llm_backend', llmBackend);
 
   try {
     const res = await fetch('/api/pipeline/audio', {
@@ -1307,6 +1441,7 @@ async function sendAudio(blob, mimeType) {
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
 
+    dbgLang.textContent = `lang: ${data.detected_language || '—'}`;
     const userText = data.user_text || data.response_text;
     addMessage('\u{1F3A4} ' + userText, true);
     addMessage(data.response_text, false);
@@ -1362,7 +1497,7 @@ function drawWaveform() {
   // Animate the mic button border glow intensity based on volume
   const glow = 20 + avg * 40;
   const outerGlow = 40 + avg * 60;
-  micBtn.style.boxShadow = `0 0 ${glow}px var(--accent-glow), 0 0 ${outerGlow}px rgba(255, 107, 74, ${0.1 + avg * 0.2})`;
+  micBtn.style.boxShadow = `0 0 ${glow}px var(--accent-glow), 0 0 ${outerGlow}px rgba(79, 144, 245, ${0.10 + avg * 0.18})`;
 }
 
 // ---- Mic button handler ---

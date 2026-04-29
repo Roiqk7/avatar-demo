@@ -18,7 +18,7 @@ WINDOW_WIDTH: int = 600
 WINDOW_HEIGHT: int = 700
 BG_COLOR: tuple[int, int, int] = (40, 40, 50)
 
-ASSETS_DIR: Path = Path(__file__).parent.parent / "assets"
+ASSETS_DIR: Path = Path(__file__).resolve().parents[2] / "assets"
 """Project `assets` directory (faces, shared visemes/eyes, optional packs)."""
 
 DEFAULT_SPRITES_ROOT: Path = ASSETS_DIR

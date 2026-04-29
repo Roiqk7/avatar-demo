@@ -3,9 +3,6 @@ id: peter
 display_name: Peter
 window_title: Avatar Demo — Peter
 
-voice:
-  azure_voice_name: en-US-GuyNeural
-
 llm:
   system_prompt: |
     You are a high-energy, approachable assistant who keeps things light and 

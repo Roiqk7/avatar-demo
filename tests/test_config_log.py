@@ -12,12 +12,18 @@ def test_settings_load_reads_required(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("AZURE_SPEECH_REGION", "westus")
     monkeypatch.setenv("AZURE_VOICE_NAME", "voice")
     monkeypatch.setenv("LLM_SYSTEM_PROMPT", "prompt")
+    monkeypatch.setenv("AZURE_TRANSLATOR_KEY", "t-key")
+    monkeypatch.setenv("AZURE_TRANSLATOR_REGION", "westeurope")
+    monkeypatch.setenv("AZURE_TRANSLATOR_ENDPOINT", "https://example.com")
 
     settings = Settings.load()
     assert settings.openai_api_key == "openai-key"
     assert settings.azure_speech_key == "azure-key"
     assert settings.azure_speech_region == "westus"
     assert settings.azure_voice_name == "voice"
+    assert settings.azure_translator_key == "t-key"
+    assert settings.azure_translator_region == "westeurope"
+    assert settings.azure_translator_endpoint == "https://example.com"
     assert settings.llm_system_prompt == "prompt"
     assert settings.llm_model == "gpt-4o-mini"
     assert settings.llm_max_completion_tokens == 512
@@ -42,10 +48,16 @@ def test_settings_load_defaults(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("AZURE_SPEECH_REGION", raising=False)
     monkeypatch.delenv("AZURE_VOICE_NAME", raising=False)
     monkeypatch.delenv("LLM_SYSTEM_PROMPT", raising=False)
+    monkeypatch.delenv("AZURE_TRANSLATOR_KEY", raising=False)
+    monkeypatch.delenv("AZURE_TRANSLATOR_REGION", raising=False)
+    monkeypatch.delenv("AZURE_TRANSLATOR_ENDPOINT", raising=False)
 
     settings = Settings.load()
     assert settings.azure_speech_region == "eastus"
-    assert settings.azure_voice_name == "en-US-JennyNeural"
+    assert settings.azure_voice_name == "en-US-GuyNeural"
+    assert settings.azure_translator_key is None
+    assert settings.azure_translator_region is None
+    assert settings.azure_translator_endpoint == "https://api.cognitive.microsofttranslator.com"
     from backend.config import _DEFAULT_LLM_SYSTEM_PROMPT
 
     assert settings.llm_system_prompt == _DEFAULT_LLM_SYSTEM_PROMPT

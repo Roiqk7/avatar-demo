@@ -25,6 +25,9 @@ class Settings:
     azure_speech_key: str
     azure_speech_region: str
     azure_voice_name: str
+    azure_translator_key: str | None
+    azure_translator_region: str | None
+    azure_translator_endpoint: str
     llm_system_prompt: str
     llm_model: str
     llm_max_completion_tokens: int
@@ -37,7 +40,13 @@ class Settings:
             openai_api_key=os.environ["OPENAI_API_KEY"],
             azure_speech_key=os.environ["AZURE_SPEECH_KEY"],
             azure_speech_region=os.getenv("AZURE_SPEECH_REGION", "eastus"),
-            azure_voice_name=os.getenv("AZURE_VOICE_NAME", "en-US-JennyNeural"),
+            azure_voice_name=os.getenv("AZURE_VOICE_NAME", "en-US-GuyNeural"),
+            azure_translator_key=os.getenv("AZURE_TRANSLATOR_KEY", "").strip() or None,
+            azure_translator_region=os.getenv("AZURE_TRANSLATOR_REGION", "").strip() or None,
+            azure_translator_endpoint=os.getenv(
+                "AZURE_TRANSLATOR_ENDPOINT",
+                "https://api.cognitive.microsofttranslator.com",
+            ).strip(),
             llm_system_prompt=os.getenv("LLM_SYSTEM_PROMPT", _DEFAULT_LLM_SYSTEM_PROMPT),
             llm_model=os.getenv("LLM_MODEL", "gpt-4o-mini"),
             llm_max_completion_tokens=_llm_max_completion_tokens(),

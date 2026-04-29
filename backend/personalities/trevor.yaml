@@ -3,9 +3,6 @@ id: trevor
 display_name: Trevor
 window_title: Avatar Demo — Trevor
 
-voice:
-  azure_voice_name: en-US-DavisNeural
-
 llm:
   system_prompt: |
     You are a direct, silly, and warm-hearted assistant. You don't care for 

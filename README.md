@@ -68,3 +68,28 @@ Input (text/audio/file) → STT (OpenAI Whisper) → LLM (echo/GPT-4o) → TTS +
 ```
 
 Services are defined as `Protocol` interfaces in `backend/services/__init__.py`. Swap any implementation by changing one line in `main.py`.
+
+## Web frontend
+
+There is also a browser-based UI backed by FastAPI.
+
+### Auto voice by detected language (cs/sk/en)
+
+The web server can **detect language from text** via **Azure Translator** and automatically pick a preferred Azure TTS voice (currently Czech, Slovak, English). This **overrides** the personality-configured voice.
+
+Add these to `.env`:
+
+- `AZURE_TRANSLATOR_KEY`
+- `AZURE_TRANSLATOR_REGION` (recommended)
+
+```bash
+# Backend (FastAPI)
+python web_server.py
+
+# Frontend (React/Vite dev server)
+cd frontend
+npm install
+npm run dev
+```
+
+Open **http://localhost:5173**.
