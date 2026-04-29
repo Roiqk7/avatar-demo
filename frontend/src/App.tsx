@@ -235,7 +235,9 @@ function App() {
                 onRecorded={onRecorded}
                 onHint={setMicHint}
                 onStatus={setStatus}
-                onUserGesture={() => void renderer?.audioPlayer.unlock()}
+                onUserGesture={() => {
+                  void renderer?.audioPlayer.unlock()
+                }}
               />
               <button className="send-btn" id="send-btn" disabled={!text.trim() || isProcessing} onClick={() => void sendText()}>
                 <svg viewBox="0 0 24 24">
