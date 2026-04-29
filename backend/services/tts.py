@@ -18,13 +18,15 @@ class AzureTtsService:
         self._speech_region: str = speech_region
         self._voice_name: str = voice_name
 
-    def synthesize(self, text: str) -> TtsResult:
-        """Synthesize speech from text, returning audio bytes and viseme timeline."""
+    def _synthesize(self, *, text: str | None = None, ssml: str | None = None, characters_synthesized: int = 0) -> TtsResult:
+        """Synthesize speech from text/SSML, returning audio bytes and viseme timeline."""
         config: speechsdk.SpeechConfig = speechsdk.SpeechConfig(
             subscription=self._speech_key,
             region=self._speech_region,
         )
-        config.speech_synthesis_voice_name = self._voice_name
+        # SSML may override voice per segment; this is just a default/fallback.
+        if self._voice_name:
+            config.speech_synthesis_voice_name = self._voice_name
         config.set_speech_synthesis_output_format(
             speechsdk.SpeechSynthesisOutputFormat.Riff16Khz16BitMonoPcm,
         )
@@ -47,8 +49,13 @@ class AzureTtsService:
 
         synthesizer.viseme_received.connect(on_viseme)
 
-        logger.debug("Synthesizing: %s", text[:80])
-        result: speechsdk.SpeechSynthesisResult = synthesizer.speak_text(text)
+        if ssml is not None:
+            logger.debug("Synthesizing SSML (%d chars)", len(ssml))
+            result: speechsdk.SpeechSynthesisResult = synthesizer.speak_ssml(ssml)
+        else:
+            safe = (text or "").strip()
+            logger.debug("Synthesizing: %s", safe[:80])
+            result = synthesizer.speak_text(safe)
 
         if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
             audio_data: bytes = result.audio_data
@@ -68,7 +75,7 @@ class AzureTtsService:
                 audio_data=audio_data,
                 visemes=visemes,
                 duration_ms=duration_ms,
-                characters_synthesized=len(text),
+                characters_synthesized=characters_synthesized,
             )
 
         cancellation: speechsdk.CancellationDetails = result.cancellation_details
@@ -77,3 +84,11 @@ class AzureTtsService:
             error_msg += f" — {cancellation.error_details}"
         logger.debug(error_msg)
         raise RuntimeError(error_msg)
+
+    def synthesize(self, text: str) -> TtsResult:
+        safe = (text or "").strip()
+        return self._synthesize(text=safe, characters_synthesized=len(safe))
+
+    def synthesize_ssml(self, ssml: str, *, characters_synthesized: int) -> TtsResult:
+        safe = (ssml or "").strip()
+        return self._synthesize(ssml=safe, characters_synthesized=characters_synthesized)

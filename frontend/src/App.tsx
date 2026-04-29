@@ -10,6 +10,9 @@ import type { LlmBackend, Personality, PipelineResponse } from './types'
 import type { AvatarRenderer } from './rendering/AvatarRenderer'
 import { detectSlur } from './safety/slurFilter'
 
+const DEMO_DISCLAIMER_TEXT =
+  'Please note this is just a technical demo, not an actual Signosoft product. I vibe-coded this, so please be kind.'
+
 function App() {
   const sessionId = React.useRef(crypto.randomUUID()).current
   const [personalities, setPersonalities] = React.useState<Personality[]>([])
@@ -45,6 +48,25 @@ function App() {
     error?: string | null
   }>({})
   const [text, setText] = React.useState('')
+  const queuedDisclaimerRef = React.useRef(false)
+  const requestAbortRef = React.useRef<AbortController | null>(null)
+  const activeRequestIdRef = React.useRef(0)
+
+  const beginNewRequest = React.useCallback(
+    (opts?: { stopAudio?: boolean }) => {
+      activeRequestIdRef.current += 1
+      requestAbortRef.current?.abort()
+      requestAbortRef.current = new AbortController()
+      if (opts?.stopAudio !== false) renderer?.interrupt()
+      return { requestId: activeRequestIdRef.current, signal: requestAbortRef.current.signal }
+    },
+    [renderer],
+  )
+
+  const readyStatusText = React.useMemo(() => {
+    const name = currentPersonality?.display_name || ''
+    return `Ready — ${name}`.trim()
+  }, [currentPersonality?.display_name])
 
   React.useEffect(() => {
     let mounted = true
@@ -214,78 +236,113 @@ function App() {
   async function sendText() {
     const msg = text.trim()
     if (!msg || isProcessing) return
-    const pid = currentPersonality?.id || 'peter'
-    void renderer?.audioPlayer.unlock()
-
-    markActive({ recenter: true })
-    setIsProcessing(true)
     setText('')
-    addMessage(msg, true)
-    setStatus({ text: 'Processing...', className: 'speaking' })
-
-    try {
-      if (msg === 'signoface') {
-        const p = personalities.find((x) => x.id === 'signoface') || null
-        if (p) {
-          setCurrentPersonality(p)
-          // Ensure it applies immediately (don’t wait for effect) so the face swaps before speaking.
-          await renderer?.applyPersonality(p)
-        }
-        await speakEchoText("It's signing time!", p?.id || pid)
-        return
-      }
-
-      const slur = detectSlur(msg)
-      if (slur) renderer?.setMood('sad')
-
-      let memeRan = false
-      if (msg.includes('67')) {
-        memeRan = true
-        await run67MemePhase(pid)
-      }
-
-      const data = await pipelineText({
-        text: msg,
-        personality_id: pid,
-        llm_backend: llmBackend,
-        session_id: sessionId,
-        safety_hint_language: slur?.language,
-      })
-      setDebug({
-        lang: data.detected_language,
-        score: data.detected_language_score,
-        voice: data.voice_used,
-        enabled: data.language_detection_enabled,
-        error: data.language_detection_error ?? null,
-      })
-      renderer?.setMood(data.mood ?? 'neutral')
-      addMessage(data.response_text, false)
-
-      if (!memeRan && data.response_text.includes('67')) {
-        memeRan = true
-        await run67MemePhase(pid)
-      }
-
-      await playResponse(data)
-      renderer?.setMood('neutral')
-    } catch (e) {
-      const err = e instanceof Error ? e.message : String(e)
-      setStatus({ text: 'Error: ' + err, className: 'error' })
-      addMessage('(Error: ' + err + ')', false)
-    } finally {
-      setIsProcessing(false)
-    }
+    await sendUserText(msg)
   }
 
+  const sendUserText = React.useCallback(
+    async (msg: string, opts?: { llmBackendOverride?: LlmBackend }) => {
+      const trimmed = msg.trim()
+      if (!trimmed || isProcessing) return
+      const pid = currentPersonality?.id || 'peter'
+      const backend: LlmBackend = opts?.llmBackendOverride ?? llmBackend
+      void renderer?.audioPlayer.unlock()
+
+      markActive({ recenter: true })
+      setIsProcessing(true)
+      addMessage(trimmed, true)
+      setStatus({ text: 'Processing...', className: 'speaking' })
+
+      try {
+        const { requestId, signal } = beginNewRequest()
+        if (trimmed === 'signoface') {
+          const p = personalities.find((x) => x.id === 'signoface') || null
+          if (p) {
+            setCurrentPersonality(p)
+            // Ensure it applies immediately (don’t wait for effect) so the face swaps before speaking.
+            await renderer?.applyPersonality(p)
+          }
+          await speakEchoText("It's signing time!", p?.id || pid)
+          return
+        }
+
+        const slur = detectSlur(trimmed)
+        if (slur) renderer?.setMood('sad')
+
+        let memeRan = false
+        if (trimmed.includes('67')) {
+          memeRan = true
+          await run67MemePhase(pid)
+        }
+
+        const data = await pipelineText({
+          text: trimmed,
+          personality_id: pid,
+          llm_backend: backend,
+          session_id: sessionId,
+          safety_hint_language: slur?.language,
+          signal,
+        })
+        if (requestId !== activeRequestIdRef.current) return
+        setDebug({
+          lang: data.detected_language,
+          score: data.detected_language_score,
+          voice: data.voice_used,
+          enabled: data.language_detection_enabled,
+          error: data.language_detection_error ?? null,
+        })
+        renderer?.setMood(data.mood ?? 'neutral')
+        addMessage(data.response_text, false)
+
+        if (!memeRan && data.response_text.includes('67')) {
+          memeRan = true
+          await run67MemePhase(pid)
+        }
+
+        await playResponse(data)
+        renderer?.setMood('neutral')
+      } catch (e) {
+        if (e instanceof DOMException && e.name === 'AbortError') return
+        const err = e instanceof Error ? e.message : String(e)
+        setStatus({ text: 'Error: ' + err, className: 'error' })
+        addMessage('(Error: ' + err + ')', false)
+      } finally {
+        setIsProcessing(false)
+      }
+    },
+    [beginNewRequest, currentPersonality?.id, isProcessing, llmBackend, markActive, personalities, renderer, sessionId],
+  )
+
+  const sendDemoDisclaimer = React.useCallback(() => {
+    queuedDisclaimerRef.current = false
+    void sendUserText(DEMO_DISCLAIMER_TEXT, { llmBackendOverride: 'echo' })
+  }, [sendUserText])
+
+  React.useEffect(() => {
+    if (!isProcessing && queuedDisclaimerRef.current) {
+      // Defer to next tick so state updates from the previous send settle first.
+      window.setTimeout(() => sendDemoDisclaimer(), 0)
+    }
+  }, [isProcessing, sendDemoDisclaimer])
+
   async function onRecorded(blob: Blob, mimeType: string) {
-    if (isProcessing) return
     const pid = currentPersonality?.id || 'peter'
     markActive({ recenter: true })
     setIsProcessing(true)
     setStatus({ text: 'Transcribing...', className: 'speaking' })
 
     try {
-      const data = await pipelineAudio({ blob, mimeType, personality_id: pid, llm_backend: llmBackend, session_id: sessionId })
+      const { requestId, signal } = beginNewRequest()
+      const data = await pipelineAudio({
+        blob,
+        mimeType,
+        personality_id: pid,
+        llm_backend: llmBackend,
+        session_id: sessionId,
+        interaction_mode: 'listening',
+        signal,
+      })
+      if (requestId !== activeRequestIdRef.current) return
       setDebug({
         lang: data.detected_language,
         score: data.detected_language_score,
@@ -300,6 +357,7 @@ function App() {
       await playResponse(data)
       renderer?.setMood('neutral')
     } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
       const err = e instanceof Error ? e.message : String(e)
       setStatus({ text: 'Error: ' + err, className: 'error' })
       addMessage('(Error: ' + err + ')', false)
@@ -330,6 +388,21 @@ function App() {
   return (
     <>
       <div className="grain" />
+      <button
+        type="button"
+        className="demo-disclaimer-btn"
+        onClick={() => {
+          if (isProcessing) {
+            queuedDisclaimerRef.current = true
+            return
+          }
+          sendDemoDisclaimer()
+        }}
+        aria-label="Send demo disclaimer"
+        title="Send demo disclaimer"
+      >
+        Demo disclaimer
+      </button>
       <header>
         <div className="logo">
           <a className="logo-link" href="https://ai-avatar.signosoft.com">
@@ -452,13 +525,25 @@ function App() {
                 onFocus={() => markActive({ recenter: true })}
               />
               <MicButton
-                disabled={isProcessing}
+                disabled={false}
                 onRecorded={onRecorded}
                 onHint={setMicHint}
-                onStatus={setStatus}
+                onStatus={(next) => {
+                  // Keep the “Ready — Personality” wording consistent.
+                  if (next.text === 'Ready') setStatus({ text: readyStatusText })
+                  else setStatus(next)
+                }}
                 onUserGesture={() => {
                   void renderer?.audioPlayer.unlock()
                   markActive({ recenter: true })
+                }}
+                onSpeechStart={() => {
+                  // Barge-in: only meaningful when we're speaking or processing.
+                  const shouldInterrupt = Boolean(renderer?.playing) || isProcessing
+                  if (!shouldInterrupt) return
+                  beginNewRequest()
+                  setIsProcessing(false)
+                  setStatus({ text: 'Listening…' })
                 }}
               />
               <button className="send-btn" id="send-btn" disabled={!text.trim() || isProcessing} onClick={() => void sendText()}>

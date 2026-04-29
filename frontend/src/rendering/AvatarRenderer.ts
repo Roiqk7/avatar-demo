@@ -553,6 +553,12 @@ export class AvatarRenderer {
     this.emoteCtrl?.notifyIdle(now)
   }
 
+  interrupt(): void {
+    // Used for barge-in: stop audio immediately and reset mouth/eye state.
+    this.audioPlayer.stop()
+    if (this.playing) this.stopPlayback()
+  }
+
   start(): void {
     if (this._running) return
     this._running = true

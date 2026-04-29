@@ -15,6 +15,7 @@ import os
 import sys
 from pathlib import Path
 from typing import Literal
+import re
 
 # Add project root to path so backend imports work
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -38,6 +39,7 @@ from backend.services.llm import EchoLlmService, OpenAiChatLlmService
 from backend.services.lang_detect import AzureTranslatorLanguageDetectService
 from backend.services.stt import WhisperSttService
 from backend.services.tts import AzureTtsService
+from backend.services.mixed_language_tts import synthesize_mixed_language_ssml
 from backend.services.azure_voice_catalog import AzureSpeechVoiceCatalog
 from backend.services.voice_select import choose_voice
 from backend.safety.slur_filter import (
@@ -106,6 +108,21 @@ KIND_FALLBACK_TEXT_BY_LANG: dict[SlurLanguage, str] = {
     "cs": "Prosím, buď slušný. Pokud jsi naštvaný, řekni mi, co se děje, bez urážek.",
 }
 
+LISTENING_MODE_PROMPT_ADDENDUM = (
+    "Context: The user input comes from a microphone in an interactive listening mode (speech-to-text).\n"
+    "- Transcription may contain mistakes, missing punctuation, or cutoffs.\n"
+    "- The user may interrupt (barge in). The newest user utterance is authoritative.\n"
+    "- Keep replies brief and interruption-friendly (1–3 spoken sentences unless asked otherwise)."
+)
+
+
+def _maybe_add_interaction_context(system_prompt: str, interaction_mode: str | None) -> str:
+    mode = (interaction_mode or "").strip().lower()
+    if mode != "listening":
+        return system_prompt
+    base = (system_prompt or "").strip()
+    return f"{base}\n\n{LISTENING_MODE_PROMPT_ADDENDUM}"
+
 
 # --- Startup ---
 @app.on_event("startup")
@@ -147,6 +164,32 @@ def _resolve_voice(session_id: str, detected_language: str | None, fallback_voic
     if lang:
         voice_map[lang] = selection.voice_name
     return selection.voice_name
+
+
+def _guess_stt_format(upload: UploadFile) -> str:
+    """Best-effort format inference for Whisper.
+
+    We prefer content_type since the filename can be missing or incorrect when produced by browsers.
+    """
+    ct = (upload.content_type or "").lower().strip()
+    if "webm" in ct:
+        return "webm"
+    if "ogg" in ct or "oga" in ct:
+        return "ogg"
+    if "wav" in ct:
+        return "wav"
+    if "mpeg" in ct or "mp3" in ct or "mpga" in ct:
+        return "mp3"
+    if "mp4" in ct:
+        return "mp4"
+    if "m4a" in ct:
+        return "m4a"
+
+    name = (upload.filename or "").lower()
+    m = re.search(r"\.([a-z0-9]{1,6})$", name)
+    if m:
+        return m.group(1)
+    return "webm"
 
 
 def _get_tts(voice_name: str) -> AzureTtsService:
@@ -363,14 +406,19 @@ def pipeline_text(req: TextRequest):
         mood = "neutral"
 
     detected = _lang_detect.detect(response_text) if _lang_detect is not None else None
-    voice = _resolve_voice(req.session_id, detected.language if detected else None, fallback_voice)
-
-    tts = _get_tts(voice)
     try:
-        tts_result = tts.synthesize(response_text)
+        tts_result, voice_used = synthesize_mixed_language_ssml(
+            response_text,
+            session_id=req.session_id,
+            fallback_voice=fallback_voice,
+            detect_language=_lang_detect.detect if _lang_detect is not None else None,
+            resolve_voice=_resolve_voice,
+            get_tts=_get_tts,
+        )
     except Exception as e:
         logger.error("TTS failed: %s", e)
         tts_result = TtsResult(audio_data=b"", visemes=[], duration_ms=0.0)
+        voice_used = None
 
     audio_b64 = base64.b64encode(tts_result.audio_data).decode() if tts_result.audio_data else ""
 
@@ -385,7 +433,7 @@ def pipeline_text(req: TextRequest):
         safety_language=slur_hit.language if slur_hit is not None else None,
         detected_language=detected.language if detected else None,
         detected_language_score=detected.score if detected else None,
-        voice_used=voice,
+        voice_used=voice_used,
         language_detection_enabled=bool(_lang_detect and _lang_detect.enabled),
         language_detection_error=_lang_detect.last_error if _lang_detect is not None else "Language detection is disabled.",
     )
@@ -397,27 +445,30 @@ async def pipeline_audio(
     personality_id: str = Form("peter"),
     llm_backend: LlmBackend = Form("echo"),
     session_id: str = Form(""),
+    interaction_mode: str = Form(""),
 ):
     """Run audio through STT → LLM → TTS, return audio + visemes."""
     if _settings is None or _stt is None:
         raise HTTPException(500, "Server not configured — missing .env keys")
 
     audio_bytes = await audio_file.read()
-    ext = (audio_file.filename or "audio.wav").rsplit(".", 1)[-1]
-
-    stt_result = _stt.transcribe(audio_bytes, ext)
+    stt_format = _guess_stt_format(audio_file)
+    stt_result = _stt.transcribe(audio_bytes, stt_format)
     logger.info("STT: %s", stt_result.text[:80])
 
     p = load_personality(personality_id)
     fallback_voice = _settings.azure_voice_name
     prompt_body = (p.llm_system_prompt or _settings.llm_system_prompt).strip()
-    system_prompt = compose_llm_system_prompt(prompt_body)
+    system_prompt = _maybe_add_interaction_context(compose_llm_system_prompt(prompt_body), interaction_mode)
 
     slur_hit = detect_slur_by_language(stt_result.text, regex_by_lang=_slur_regex_by_lang)
     if slur_hit is not None:
         safety_lang = slur_hit.language
         if llm_backend == "openai":
-            llm = _get_llm(llm_backend, system_prompt=KIND_SYSTEM_PROMPT_BY_LANG[safety_lang])
+            llm = _get_llm(
+                llm_backend,
+                system_prompt=_maybe_add_interaction_context(KIND_SYSTEM_PROMPT_BY_LANG[safety_lang], interaction_mode),
+            )
             llm_result = llm.generate(stt_result.text)
             response_text = llm_result.response
         else:
@@ -432,14 +483,19 @@ async def pipeline_audio(
         mood = "neutral"
 
     detected = _lang_detect.detect(response_text) if _lang_detect is not None else None
-    voice = _resolve_voice(session_id, detected.language if detected else None, fallback_voice)
-
-    tts = _get_tts(voice)
     try:
-        tts_result = tts.synthesize(response_text)
+        tts_result, voice_used = synthesize_mixed_language_ssml(
+            response_text,
+            session_id=session_id,
+            fallback_voice=fallback_voice,
+            detect_language=_lang_detect.detect if _lang_detect is not None else None,
+            resolve_voice=_resolve_voice,
+            get_tts=_get_tts,
+        )
     except Exception as e:
         logger.error("TTS failed: %s", e)
         tts_result = TtsResult(audio_data=b"", visemes=[], duration_ms=0.0)
+        voice_used = None
 
     audio_b64 = base64.b64encode(tts_result.audio_data).decode() if tts_result.audio_data else ""
 
@@ -454,7 +510,7 @@ async def pipeline_audio(
         safety_language=slur_hit.language if slur_hit is not None else None,
         detected_language=detected.language if detected else None,
         detected_language_score=detected.score if detected else None,
-        voice_used=voice,
+        voice_used=voice_used,
         language_detection_enabled=bool(_lang_detect and _lang_detect.enabled),
         language_detection_error=_lang_detect.last_error if _lang_detect is not None else "Language detection is disabled.",
     )

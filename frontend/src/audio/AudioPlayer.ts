@@ -22,49 +22,59 @@ export class AudioPlayer {
   }
 
   async play(base64Wav: string, onEnd?: () => void): Promise<void> {
-    if (!base64Wav) {
-      onEnd?.()
-      return
-    }
-    await this.unlock()
-    if (!this._ctx) {
-      console.error('AudioContext not available')
-      onEnd?.()
-      return
-    }
-    if (this._ctx.state === 'suspended') {
-      console.warn('AudioContext is suspended (autoplay policy?)')
-      onEnd?.()
-      return
-    }
-
-    let bytes: Uint8Array
-    try {
-      const binary = atob(base64Wav)
-      bytes = new Uint8Array(binary.length)
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-    } catch (e) {
-      console.error('Base64 decode error:', e)
-      onEnd?.()
-      return
-    }
-
-    try {
-      const arrayBuffer = bytes.buffer as ArrayBuffer
-      const buffer = await this._ctx.decodeAudioData(arrayBuffer)
-      this.stop()
-      this._source = this._ctx.createBufferSource()
-      this._source.buffer = buffer
-      this._source.connect(this._ctx.destination)
-      this._source.onended = () => {
-        this._source = null
+    return await new Promise<void>((resolve) => {
+      const finish = () => {
         onEnd?.()
+        resolve()
       }
-      this._source.start(0)
-    } catch (e) {
-      console.error('Audio decode error:', e)
-      onEnd?.()
-    }
+
+      if (!base64Wav) {
+        finish()
+        return
+      }
+
+      void (async () => {
+        await this.unlock()
+        if (!this._ctx) {
+          console.error('AudioContext not available')
+          finish()
+          return
+        }
+        if (this._ctx.state === 'suspended') {
+          console.warn('AudioContext is suspended (autoplay policy?)')
+          finish()
+          return
+        }
+
+        let bytes: Uint8Array
+        try {
+          const binary = atob(base64Wav)
+          bytes = new Uint8Array(binary.length)
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+        } catch (e) {
+          console.error('Base64 decode error:', e)
+          finish()
+          return
+        }
+
+        try {
+          const arrayBuffer = bytes.buffer as ArrayBuffer
+          const buffer = await this._ctx.decodeAudioData(arrayBuffer)
+          this.stop()
+          this._source = this._ctx.createBufferSource()
+          this._source.buffer = buffer
+          this._source.connect(this._ctx.destination)
+          this._source.onended = () => {
+            this._source = null
+            finish()
+          }
+          this._source.start(0)
+        } catch (e) {
+          console.error('Audio decode error:', e)
+          finish()
+        }
+      })()
+    })
   }
 
   stop(): void {

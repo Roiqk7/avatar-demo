@@ -58,6 +58,46 @@ header {
   z-index: 100;
 }
 
+.demo-disclaimer-btn {
+  position: fixed;
+  left: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  z-index: 1300;
+  appearance: none;
+  border: 1px solid rgba(60, 70, 160, 0.14);
+  background: rgba(255, 255, 255, 0.52);
+  backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  border-radius: 999px;
+  padding: 7px 10px;
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--text-dim);
+  box-shadow: 0 10px 30px rgba(60, 70, 160, 0.08);
+  cursor: pointer;
+  opacity: 0.72;
+  transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.demo-disclaimer-btn:hover {
+  opacity: 0.95;
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(60, 70, 160, 0.20);
+}
+
+.demo-disclaimer-btn:active {
+  transform: scale(0.98);
+}
+
+.demo-disclaimer-btn:focus-visible {
+  outline: none;
+  opacity: 0.98;
+  border-color: rgba(59, 79, 228, 0.35);
+  box-shadow: 0 0 0 3px rgba(59, 79, 228, 0.12), 0 10px 30px rgba(60, 70, 160, 0.10);
+}
+
 .logo {
   display: flex;
   align-items: center;
@@ -134,6 +174,11 @@ header {
 @media (max-width: 900px) and (orientation: portrait) {
   :root { --header-h: 0px; }
   header { display: none; }
+
+  /* Keep the disclaimer button above the chat input area on phones. */
+  .demo-disclaimer-btn {
+    bottom: calc(84px + env(safe-area-inset-bottom));
+  }
 
   /* Mobile-only floating chrome */
   .mobile-chrome {

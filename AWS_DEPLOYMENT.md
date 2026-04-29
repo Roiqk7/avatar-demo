@@ -213,6 +213,108 @@ curl -k https://localhost/ | head -3
 
 ### Pushing code updates
 
+This deployment is intentionally simple: **we rsync the working tree to the EC2 box**
+and restart the systemd service.
+
+#### Production target (current)
+
+- **SSH host**: `ubuntu@ec2-63-180-232-181.eu-central-1.compute.amazonaws.com`
+- **Deploy directory**: `/home/ubuntu/avatar-demo/`
+- **systemd service**: `avatar-demo.service`
+- **Python venv**: `/opt/avatar-venv/`
+
+#### Update workflow (copy/paste)
+
+##### 1) Build the frontend locally (recommended)
+
+The FastAPI server (`web_server.py`) can serve a built Vite bundle from `frontend/dist/`.
+When you change frontend code, build before uploading so the server has the latest assets.
+
+From your local machine, in the project root:
+
+```bash
+# Build the React/Vite frontend (updates frontend/dist)
+npm --prefix frontend run build
+```
+
+##### 2) Rsync the repo to EC2 (exclude secrets + local junk)
+
+From your local machine, in the project root:
+
+```bash
+rsync -avz --delete \
+  --exclude ".git" \
+  --exclude ".venv" \
+  --exclude "myenv" \
+  --exclude "__pycache__" \
+  --exclude "*.pyc" \
+  --exclude "frontend/node_modules" \
+  --exclude "*.pem" \
+  -e "ssh -i ~/.ssh/signosoft/SignoSoftFrankfurt.pem" \
+  ./ ubuntu@ec2-63-180-232-181.eu-central-1.compute.amazonaws.com:/home/ubuntu/avatar-demo/
+```
+
+Notes:
+- `--delete` makes the remote folder match your local tree (good for removing old files).
+- `--exclude "*.pem"` prevents accidentally uploading private SSH keys to the server.
+- The EC2 folder `/home/ubuntu/avatar-demo/` is **not** a git repo; rsync is the deploy mechanism.
+
+##### 3) Restart the service (EC2)
+
+SSH in:
+
+```bash
+ssh -i ~/.ssh/signosoft/SignoSoftFrankfurt.pem ubuntu@ec2-63-180-232-181.eu-central-1.compute.amazonaws.com
+```
+
+Then restart and check status:
+
+```bash
+sudo systemctl restart avatar-demo.service
+sudo systemctl status avatar-demo.service --no-pager
+```
+
+##### 4) Verify locally on the EC2 instance
+
+```bash
+# Check the HTTPS listener works on localhost (self-signed)
+curl -k -I https://127.0.0.1/
+
+# Sanity-check a JSON API endpoint
+curl -k https://127.0.0.1/api/personalities | head
+```
+
+##### 5) Confirm the new frontend bundle is present (optional but useful)
+
+If you updated the frontend, confirm the built bundle exists and has fresh timestamps:
+
+```bash
+ls -la /home/ubuntu/avatar-demo/frontend/dist/ui-assets/
+```
+
+If you see the browser loading old `index-<hash>.js` files, it can be a caching issue.
+In Safari, “Empty Caches” / private window usually resolves it.
+
+##### 6) If you changed Python dependencies
+
+If `requirements.txt` changed, install dependencies into the **existing venv**:
+
+```bash
+cd /home/ubuntu/avatar-demo
+sudo /opt/avatar-venv/bin/pip install -r requirements.txt
+sudo systemctl restart avatar-demo.service
+```
+
+If the service fails, inspect logs:
+
+```bash
+sudo journalctl -u avatar-demo.service -n 100 --no-pager
+```
+
+---
+
+#### Legacy/alternate (generic) commands
+
 From your local machine, in the project root:
 
 ```bash
