@@ -10,6 +10,7 @@ export async function pipelineText(args: {
   text: string
   personality_id: string
   llm_backend: LlmBackend
+  session_id: string
 }): Promise<PipelineResponse> {
   const res = await fetch('/api/pipeline/text', {
     method: 'POST',
@@ -25,12 +26,14 @@ export async function pipelineAudio(args: {
   mimeType: string
   personality_id: string
   llm_backend: LlmBackend
+  session_id: string
 }): Promise<PipelineResponse> {
   const formData = new FormData()
   const ext = getExtFromMime(args.mimeType)
   formData.append('audio_file', args.blob, `recording.${ext}`)
   formData.append('personality_id', args.personality_id)
   formData.append('llm_backend', args.llm_backend)
+  formData.append('session_id', args.session_id)
 
   const res = await fetch('/api/pipeline/audio', { method: 'POST', body: formData })
   if (!res.ok) throw new Error(await res.text())

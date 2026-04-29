@@ -6,16 +6,29 @@ import { LlmBackendToggle } from './components/LlmBackendToggle'
 import { MicButton } from './components/MicButton'
 import { PersonalityPicker } from './components/PersonalityPicker'
 import { useLocalStorageState } from './hooks/useLocalStorageState'
-import type { LlmBackend, Personality } from './types'
+import type { LlmBackend, Personality, PipelineResponse } from './types'
 import type { AvatarRenderer } from './rendering/AvatarRenderer'
 
 function App() {
+  const sessionId = React.useRef(crypto.randomUUID()).current
   const [personalities, setPersonalities] = React.useState<Personality[]>([])
   const [currentPersonality, setCurrentPersonality] = React.useState<Personality | null>(null)
   const [renderer, setRenderer] = React.useState<AvatarRenderer | null>(null)
   const [messages, setMessages] = React.useState<ChatMessage[]>([])
 
   const [llmBackend, setLlmBackend] = useLocalStorageState<LlmBackend>('avatarDemo.llmBackend', 'echo')
+  const [activeBg, setActiveBg] = React.useState(3) // start with Serenity (blue)
+
+  React.useEffect(() => {
+    const id = setInterval(() => {
+      setActiveBg(prev => {
+        let next: number
+        do { next = Math.floor(Math.random() * 6) } while (next === prev)
+        return next
+      })
+    }, 20000)
+    return () => clearInterval(id)
+  }, [])
 
   const [isProcessing, setIsProcessing] = React.useState(false)
   const [status, setStatus] = React.useState<{ text: string; className?: string }>({ text: 'Initializing...' })
@@ -67,14 +80,14 @@ function App() {
     setMessages((m) => [...m, { id: crypto.randomUUID(), label, text, isUser }])
   }
 
-  async function playResponse(data: { audio_base64: string; visemes: any[] }) {
+  async function playResponse(data: Pick<PipelineResponse, 'audio_base64' | 'visemes'>) {
     if (!data.audio_base64) {
       setStatus({ text: 'Ready (no audio)' })
       return
     }
     if (!renderer) return
     setStatus({ text: 'Speaking', className: 'speaking' })
-    await renderer.playTts(data.audio_base64, data.visemes as any, () => {
+    await renderer.playTts(data.audio_base64, data.visemes, () => {
       setStatus({ text: `Ready — ${currentPersonality?.display_name || ''}`.trim() })
     })
   }
@@ -83,6 +96,7 @@ function App() {
     const msg = text.trim()
     if (!msg || isProcessing) return
     const pid = currentPersonality?.id || 'peter'
+    void renderer?.audioPlayer.unlock()
 
     setIsProcessing(true)
     setText('')
@@ -90,7 +104,7 @@ function App() {
     setStatus({ text: 'Processing...', className: 'speaking' })
 
     try {
-      const data = await pipelineText({ text: msg, personality_id: pid, llm_backend: llmBackend })
+      const data = await pipelineText({ text: msg, personality_id: pid, llm_backend: llmBackend, session_id: sessionId })
       setDebug({
         lang: data.detected_language,
         score: data.detected_language_score,
@@ -116,7 +130,7 @@ function App() {
     setStatus({ text: 'Transcribing...', className: 'speaking' })
 
     try {
-      const data = await pipelineAudio({ blob, mimeType, personality_id: pid, llm_backend: llmBackend })
+      const data = await pipelineAudio({ blob, mimeType, personality_id: pid, llm_backend: llmBackend, session_id: sessionId })
       setDebug({
         lang: data.detected_language,
         score: data.detected_language_score,
@@ -143,16 +157,16 @@ function App() {
       <div className="grain" />
       <header>
         <div className="logo">
-          <img src="/assets/logo/logo.png" alt="Signosoft" className="logo-img" />
+          <img src="/logo_full.png" alt="Signosoft" className="logo-img" />
         </div>
-        <div className={'status-badge ' + (status.className || '')} id="status-badge">
-          <div className="dot" />
-          <span id="status-text">{status.text}</span>
-        </div>
+        <div className="header-subtitle">Avatar demo</div>
       </header>
 
       <div className="main-layout">
-        <div className={'canvas-area' + (status.className === 'speaking' ? ' speaking' : '')}>
+        <div className={`canvas-area${status.className === 'speaking' ? ' speaking' : ''}`}>
+          {[0, 1, 2, 3, 4, 5].map(i => (
+            <div key={i} className={`bg-layer bg-layer-${i}${activeBg === i ? ' active' : ''}`} />
+          ))}
           <AvatarCanvas
             personality={currentPersonality}
             onRenderer={(r) => {
@@ -164,10 +178,10 @@ function App() {
             }}
             onHud={(t) => setHud(t)}
           />
-          <div className="hud" id="hud">
-            {assetError ? assetError : hud}
-          </div>
           <div className="avatar-debug">
+            <div className="hud" id="hud">
+              {assetError ? assetError : hud}
+            </div>
             <div className="hud hud-debug">
               <span>
                 Lang: {debug.lang || '—'}
@@ -221,6 +235,7 @@ function App() {
                 onRecorded={onRecorded}
                 onHint={setMicHint}
                 onStatus={setStatus}
+                onUserGesture={() => void renderer?.audioPlayer.unlock()}
               />
               <button className="send-btn" id="send-btn" disabled={!text.trim() || isProcessing} onClick={() => void sendText()}>
                 <svg viewBox="0 0 24 24">

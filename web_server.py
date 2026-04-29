@@ -69,6 +69,8 @@ _stt = None
 _tts_cache: dict[str, AzureTtsService] = {}
 _lang_detect: AzureTranslatorLanguageDetectService | None = None
 _voice_catalog: AzureSpeechVoiceCatalog | None = None
+# Maps session_id -> {language_code -> voice_name}; pinned for the lifetime of the process.
+_session_voice_maps: dict[str, dict[str, str]] = {}
 
 ASSETS_DIR = PROJECT_ROOT / "assets"
 
@@ -97,6 +99,22 @@ def startup():
         _stt = None
         _lang_detect = None
         _voice_catalog = None
+
+
+def _resolve_voice(session_id: str, detected_language: str | None, fallback_voice: str) -> str:
+    """Return a consistent voice for this session+language, picking one on first encounter."""
+    lang = (detected_language or "").strip().lower()
+    voice_map = _session_voice_maps.setdefault(session_id, {})
+    if lang and lang in voice_map:
+        return voice_map[lang]
+    selection = choose_voice(
+        detected_language=detected_language,
+        fallback_voice_name=fallback_voice,
+        catalog=_voice_catalog,
+    )
+    if lang:
+        voice_map[lang] = selection.voice_name
+    return selection.voice_name
 
 
 def _get_tts(voice_name: str) -> AzureTtsService:
@@ -148,6 +166,7 @@ class TextRequest(BaseModel):
     text: str
     personality_id: str = "peter"
     llm_backend: LlmBackend = "echo"
+    session_id: str = ""
 
 
 class VisemeOut(BaseModel):
@@ -288,12 +307,7 @@ def pipeline_text(req: TextRequest):
     llm_result = llm.generate(req.text)
 
     detected = _lang_detect.detect(llm_result.response) if _lang_detect is not None else None
-    selection = choose_voice(
-        detected_language=detected.language if detected else None,
-        fallback_voice_name=fallback_voice,
-        catalog=_voice_catalog,
-    )
-    voice = selection.voice_name
+    voice = _resolve_voice(req.session_id, detected.language if detected else None, fallback_voice)
 
     tts = _get_tts(voice)
     try:
@@ -323,6 +337,7 @@ async def pipeline_audio(
     audio_file: UploadFile = File(...),
     personality_id: str = Form("peter"),
     llm_backend: LlmBackend = Form("echo"),
+    session_id: str = Form(""),
 ):
     """Run audio through STT → LLM → TTS, return audio + visemes."""
     if _settings is None or _stt is None:
@@ -342,12 +357,7 @@ async def pipeline_audio(
     llm_result = llm.generate(stt_result.text)
 
     detected = _lang_detect.detect(llm_result.response) if _lang_detect is not None else None
-    selection = choose_voice(
-        detected_language=detected.language if detected else None,
-        fallback_voice_name=fallback_voice,
-        catalog=_voice_catalog,
-    )
-    voice = selection.voice_name
+    voice = _resolve_voice(session_id, detected.language if detected else None, fallback_voice)
 
     tts = _get_tts(voice)
     try:

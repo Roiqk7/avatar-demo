@@ -227,10 +227,15 @@ export class AvatarRenderer {
       this._drawIdleMouth(idle.prev, idle.cur, idle.t)
     }
 
-    const mouthLabel = this.playing ? this.personality?.viseme_labels[activeViseme] || '?' : 'idle'
+    const visemeLabel = this.playing
+      ? `${activeViseme}(${this.personality?.viseme_labels[activeViseme] || '?'})`
+      : '-'
+    const mouthSprite = this.playing
+      ? this.personality?.viseme_labels[activeViseme] || '?'
+      : this.mouthCtrl?._current || '-'
     const eyeLabel = this.eyeCtrl ? `${this.eyeCtrl._current}(${this.eyeCtrl.stateLabel})` : '-'
     const state = this.playing ? 'Speaking' : 'Listening'
-    this.onHud?.(`${state} | Mouth: ${mouthLabel} | Eye: ${eyeLabel}`)
+    this.onHud?.(`${state} | Viseme: ${visemeLabel} | Mouth: ${mouthSprite} | Eye: ${eyeLabel}`)
   }
 
   async playTts(base64Wav: string, visemes: VisemeOut[], onDone?: () => void): Promise<void> {

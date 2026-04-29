@@ -44,7 +44,7 @@ export function AvatarCanvas(props: {
       r.stop()
       rendererRef.current = null
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   React.useEffect(() => {
     const r = rendererRef.current

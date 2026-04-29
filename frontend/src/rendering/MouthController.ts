@@ -141,10 +141,12 @@ export class MouthController {
         return false
       }
 
-      tryTier('_nextSubtleMs', tc.subtle_next_after, pools.subtle, tc.subtle_transition_ms, tc.subtle_hold_ms) ||
+      const didPick =
+        tryTier('_nextSubtleMs', tc.subtle_next_after, pools.subtle, tc.subtle_transition_ms, tc.subtle_hold_ms) ||
         tryTier('_nextHappyMs', tc.happy_next_after, pools.happy, tc.happy_transition_ms, tc.happy_hold_ms) ||
         tryTier('_nextGoofyMs', tc.goofy_next_after, pools.goofy, tc.goofy_transition_ms, tc.goofy_hold_ms) ||
         tryTier('_nextDramaticMs', tc.dramatic_next_after, pools.dramatic, tc.dramatic_transition_ms, tc.dramatic_hold_ms)
+      void didPick
     }
 
     const t = this._t(elapsedMs)

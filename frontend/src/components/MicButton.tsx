@@ -3,7 +3,7 @@ import * as React from 'react'
 function getMimeType(): string {
   const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg', 'audio/wav']
   for (const t of types) {
-    if ((window as any).MediaRecorder?.isTypeSupported?.(t)) return t
+    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t)) return t
   }
   return ''
 }
@@ -13,8 +13,9 @@ export function MicButton(props: {
   onRecorded: (blob: Blob, mimeType: string) => Promise<void> | void
   onHint?: (hint: string) => void
   onStatus?: (status: { text: string; className?: string }) => void
+  onUserGesture?: () => void
 }) {
-  const { disabled, onRecorded, onHint, onStatus } = props
+  const { disabled, onRecorded, onHint, onStatus, onUserGesture } = props
   const [isRecording, setIsRecording] = React.useState(false)
   const mediaRecorderRef = React.useRef<MediaRecorder | null>(null)
   const streamRef = React.useRef<MediaStream | null>(null)
@@ -98,7 +99,7 @@ export function MicButton(props: {
     typeof navigator !== 'undefined' &&
     !!navigator.mediaDevices &&
     typeof navigator.mediaDevices.getUserMedia === 'function' &&
-    typeof (window as any).MediaRecorder !== 'undefined'
+    typeof MediaRecorder !== 'undefined'
 
   return (
     <button
@@ -107,7 +108,10 @@ export function MicButton(props: {
       type="button"
       title={hasSupport ? 'Click to record, click again to stop' : 'Microphone not supported in this browser'}
       disabled={disabled || !hasSupport}
-      onClick={() => (isRecording ? stopRecording() : void startRecording())}
+      onClick={() => {
+        onUserGesture?.()
+        return isRecording ? stopRecording() : void startRecording()
+      }}
     >
       <svg className="mic-icon" viewBox="0 0 24 24">
         <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5z" />

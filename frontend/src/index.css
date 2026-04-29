@@ -11,6 +11,7 @@
   --accent-glow:  rgba(59, 79, 228, 0.22);
   --green:        #16a34a;
   --yellow:       #ca8a04;
+  --header-h:     80px;
 }
 
 * {
@@ -37,8 +38,8 @@ body {
 }
 
 header {
-  height: 65px;
-  padding: 0 32px;
+  height: var(--header-h);
+  padding: 0 28px 0 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -55,12 +56,18 @@ header {
 .logo {
   display: flex;
   align-items: center;
+  height: 100%;
+  padding: 0 16px;
+  border-right: 1px solid rgba(60, 70, 160, 0.08);
+  overflow: visible;
 }
 
 .logo-img {
-  height: 32px;
+  height: 96px;
+  max-width: 360px;
   width: auto;
   display: block;
+  object-fit: contain;
 }
 
 .status-badge {
@@ -92,10 +99,19 @@ header {
   background: #ef4444;
 }
 
+.header-subtitle {
+  font-size: 39px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.3px;
+  user-select: none;
+  line-height: 1;
+}
+
 .main-layout {
   display: grid;
   grid-template-columns: 1fr 360px;
-  height: calc(100vh - 65px);
+  height: calc(100vh - var(--header-h));
   max-width: none;
   margin: 0;
   gap: 0;
@@ -134,7 +150,7 @@ header {
   opacity: 0;
   transition: opacity 0.8s ease;
   pointer-events: none;
-  z-index: 0;
+  z-index: 2;
 }
 .canvas-area.speaking::after {
   opacity: 1;
@@ -147,10 +163,86 @@ header {
 
 #avatar-canvas {
   image-rendering: auto;
-  width: min(100%, calc(100vh - 120px));
+  width: min(100%, calc(100vh - var(--header-h) - 44px));
   aspect-ratio: 1 / 1;
   position: relative;
+  z-index: 3;
+}
+
+/* ── Auto-cycling background layers ─────────────────────────────── */
+
+.bg-layer {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 10s ease-in-out;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.bg-layer.active { opacity: 1; }
+
+/* Soft spotlight halo always present behind the avatar */
+.canvas-area::before {
+  content: '';
+  position: absolute;
+  width: 68%;
+  aspect-ratio: 1 / 1;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -52%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0.15) 45%, transparent 70%);
+  pointer-events: none;
   z-index: 1;
+}
+
+/* BG 0 — Tranquility: Apple 2026 pinks + lavender */
+.bg-layer-0 {
+  background:
+    radial-gradient(ellipse 80% 70% at 20% 20%, rgba(255, 200, 225, 0.55) 0%, transparent 55%),
+    radial-gradient(ellipse 60% 55% at 80% 80%, rgba(220, 190, 245, 0.45) 0%, transparent 55%),
+    linear-gradient(150deg, #FFF2F7 0%, #FDDEED 30%, #F5D8F5 60%, #EEE8FB 100%);
+}
+
+/* BG 1 — Pearl: iridescent silver-white */
+.bg-layer-1 {
+  background:
+    radial-gradient(ellipse 75% 65% at 15% 25%, rgba(220, 222, 240, 0.55) 0%, transparent 55%),
+    radial-gradient(ellipse 60% 55% at 85% 75%, rgba(210, 215, 235, 0.45) 0%, transparent 55%),
+    linear-gradient(150deg, #FAFBFF 0%, #F2F3FA 30%, #ECEDF7 60%, #F5F5FC 100%);
+}
+
+/* BG 2 — Blossom: cherry blossom deep rose */
+.bg-layer-2 {
+  background:
+    radial-gradient(ellipse 75% 65% at 20% 20%, rgba(255, 180, 200, 0.60) 0%, transparent 55%),
+    radial-gradient(ellipse 55% 50% at 80% 80%, rgba(255, 160, 190, 0.40) 0%, transparent 55%),
+    linear-gradient(150deg, #FFF0F5 0%, #FFDDE9 30%, #FFCFE2 60%, #F8E5F5 100%);
+}
+
+/* BG 3 — Serenity: sky blue + periwinkle */
+.bg-layer-3 {
+  background:
+    radial-gradient(ellipse 75% 65% at 15% 20%, rgba(195, 220, 255, 0.60) 0%, transparent 55%),
+    radial-gradient(ellipse 55% 50% at 85% 80%, rgba(200, 195, 255, 0.45) 0%, transparent 55%),
+    linear-gradient(150deg, #F2F8FF 0%, #E5F1FF 30%, #E2E5FF 60%, #EEF2FF 100%);
+}
+
+/* BG 4 — Dusk: warm peach + rose gold */
+.bg-layer-4 {
+  background:
+    radial-gradient(ellipse 75% 65% at 20% 20%, rgba(255, 210, 180, 0.60) 0%, transparent 55%),
+    radial-gradient(ellipse 55% 50% at 80% 80%, rgba(255, 195, 195, 0.45) 0%, transparent 55%),
+    linear-gradient(150deg, #FFF6EE 0%, #FFEADE 30%, #FFD8C8 60%, #FFF0E8 100%);
+}
+
+/* BG 5 — Aurora: mint + soft teal */
+.bg-layer-5 {
+  background:
+    radial-gradient(ellipse 75% 65% at 15% 20%, rgba(170, 240, 215, 0.60) 0%, transparent 55%),
+    radial-gradient(ellipse 55% 50% at 85% 80%, rgba(170, 230, 240, 0.45) 0%, transparent 55%),
+    linear-gradient(150deg, #F0FDF8 0%, #E2F8F0 30%, #D8F5EC 60%, #EAF8FC 100%);
 }
 
 .hud {
@@ -160,14 +252,25 @@ header {
   text-align: center;
   letter-spacing: 0.5px;
   position: relative;
-  z-index: 1;
+  z-index: 3;
 }
 
 .avatar-debug {
-  margin-top: 10px;
-  width: min(560px, 100%);
-  position: relative;
-  z-index: 1;
+  margin-top: 0;
+  width: min(560px, calc(100% - 28px));
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 22px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.avatar-debug .hud {
+  margin-top: 0;
 }
 
 .hud.hud-debug {
