@@ -17,6 +17,18 @@ def _llm_max_completion_tokens() -> int:
     return max(1, int(raw))
 
 
+def _stt_language() -> str | None:
+    raw: str = os.getenv("STT_LANGUAGE", "").strip().lower()
+    if not raw or raw == "auto":
+        return None
+    return raw
+
+
+def _stt_prompt() -> str | None:
+    raw: str = os.getenv("STT_PROMPT", "").strip()
+    return raw or None
+
+
 @dataclass(frozen=True)
 class Settings:
     """Application configuration loaded from .env file."""
@@ -30,6 +42,9 @@ class Settings:
     azure_translator_endpoint: str
     llm_system_prompt: str
     llm_model: str
+    stt_model: str
+    stt_language: str | None
+    stt_prompt: str | None
     llm_max_completion_tokens: int
 
     @staticmethod
@@ -40,7 +55,7 @@ class Settings:
             openai_api_key=os.environ["OPENAI_API_KEY"],
             azure_speech_key=os.environ["AZURE_SPEECH_KEY"],
             azure_speech_region=os.getenv("AZURE_SPEECH_REGION", "eastus"),
-            azure_voice_name=os.getenv("AZURE_VOICE_NAME", "en-US-Adam:DragonHDLatestNeural"),
+            azure_voice_name=os.getenv("AZURE_VOICE_NAME", "cs-CZ-AntoninNeural"),
             azure_translator_key=os.getenv("AZURE_TRANSLATOR_KEY", "").strip() or None,
             azure_translator_region=os.getenv("AZURE_TRANSLATOR_REGION", "").strip() or None,
             azure_translator_endpoint=os.getenv(
@@ -49,5 +64,8 @@ class Settings:
             ).strip(),
             llm_system_prompt=os.getenv("LLM_SYSTEM_PROMPT", _DEFAULT_LLM_SYSTEM_PROMPT),
             llm_model=os.getenv("LLM_MODEL", "gpt-4o-mini"),
+            stt_model=os.getenv("STT_MODEL", "gpt-4o-transcribe"),
+            stt_language=_stt_language(),
+            stt_prompt=_stt_prompt(),
             llm_max_completion_tokens=_llm_max_completion_tokens(),
         )

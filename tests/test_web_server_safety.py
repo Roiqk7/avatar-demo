@@ -43,12 +43,11 @@ def test_pipeline_text_slur_skips_llm_and_sets_sad(monkeypatch: pytest.MonkeyPat
     # Avoid voice selection complexity.
     monkeypatch.setattr(ws, "_resolve_voice", lambda *_args, **_kwargs: "voice")
 
-    class _FakeTts:
-        def synthesize(self, text: str):
-            assert text == "Please be kind."
-            return types.SimpleNamespace(audio_data=b"wav", visemes=[], duration_ms=123.0)
-
-    monkeypatch.setattr(ws, "_get_tts", lambda _voice: _FakeTts())
+    monkeypatch.setattr(
+        ws,
+        "synthesize_mixed_language_ssml",
+        lambda text, **_kw: (types.SimpleNamespace(audio_data=b"wav", visemes=[], duration_ms=123.0), "voice"),
+    )
 
     client = TestClient(ws.app)
     res = client.post(
@@ -62,6 +61,6 @@ def test_pipeline_text_slur_skips_llm_and_sets_sad(monkeypatch: pytest.MonkeyPat
     assert data["safety_language"] == "en"
     assert data["response_text"] == "Please be kind."
     assert seen["llm_backend"] == "openai"
-    assert "Please be kind" in seen["system_prompt"]
+    assert "insulting or hateful language" in seen["system_prompt"]
     assert base64.b64decode(data["audio_base64"]) == b"wav"
 

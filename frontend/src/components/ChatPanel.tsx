@@ -1,10 +1,25 @@
 import * as React from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
+
+const _katexSchema = {
+  ...defaultSchema,
+  attributes: {
+    ...(defaultSchema.attributes || {}),
+    span: [...((defaultSchema.attributes as any)?.span || []), ['className']],
+    div: [...((defaultSchema.attributes as any)?.div || []), ['className']],
+  },
+}
 
 export type ChatMessage = {
   id: string
   label: string
   text: string
   isUser: boolean
+  isMarkdown?: boolean
 }
 
 export function ChatPanel(props: { messages: ChatMessage[] }) {
@@ -77,11 +92,24 @@ export function ChatPanel(props: { messages: ChatMessage[] }) {
             </button>
           </div>
           <div className="label">{m.label}</div>
-          {m.text}
+          {m.isMarkdown ? (
+            <div className="md">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm, remarkMath]}
+                rehypePlugins={[
+                  rehypeKatex,
+                  [rehypeSanitize, _katexSchema as any],
+                ]}
+              >
+                {m.text}
+              </ReactMarkdown>
+            </div>
+          ) : (
+            m.text
+          )}
         </div>
       ))}
       <div ref={bottomRef} />
     </div>
   )
 }
-

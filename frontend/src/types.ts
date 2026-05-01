@@ -1,4 +1,6 @@
-export type LlmBackend = 'echo' | 'openai'
+export type LlmBackend = 'echo' | 'openai' | 'max'
+
+export type ChatTurn = { role: 'user' | 'assistant'; content: string }
 
 export type VisemeOut = {
   id: number
@@ -16,9 +18,21 @@ export type PipelineResponse = {
   safety_language?: 'en' | 'cs' | null
   detected_language?: string | null
   detected_language_score?: number | null
+  debug_lang_mode?: string | null
+  debug_session_lang?: string | null
   voice_used?: string | null
+  debug_voice_mode?: string | null
   language_detection_enabled?: boolean
   language_detection_error?: string | null
+  debug_stt_model?: string | null
+  debug_stt_language?: string | null
+  debug_llm_backend?: string | null
+  debug_llm_model?: string | null
+  debug_tts_backend?: string | null
+  debug_lang_detect_backend?: string | null
+  timing_stt_ms?: number | null
+  timing_llm_ms?: number | null
+  timing_tts_ms?: number | null
 }
 
 export type Personality = {

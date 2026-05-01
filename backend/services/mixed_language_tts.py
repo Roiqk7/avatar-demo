@@ -49,6 +49,14 @@ def segment_text_by_language(
     if not raw:
         return []
 
+    # If the entire utterance is shorter than our normal clause threshold,
+    # still run detection once to avoid falling back to the default voice.
+    total_words = _word_count(raw)
+    if detect_language is not None and 0 < total_words < min_words_detect:
+        detected = detect_language(raw)
+        lang = (detected.language if detected else None) or None
+        return [TextSegment(text=raw, language=lang)]
+
     clauses = [m.group(0) for m in _CLAUSE_RE.finditer(raw)]
     if not clauses:
         clauses = [raw]

@@ -30,8 +30,28 @@ export function MicButton(props: {
   onStatus?: (status: MicStatus) => void
   onUserGesture?: () => void
   onSpeechStart?: () => void
+  onStopInterrupt?: () => void
+  onListeningChange?: (isListening: boolean) => void
+  onAudioFrame?: (samples: Float32Array) => void
 }) {
-  const { disabled, onRecorded, onHint, onStatus, onUserGesture, onSpeechStart } = props
+  const { disabled, onRecorded, onHint, onStatus, onUserGesture, onSpeechStart, onStopInterrupt, onListeningChange, onAudioFrame } = props
+
+  const onRecordedRef = React.useRef(onRecorded)
+  const onHintRef = React.useRef(onHint)
+  const onStatusRef = React.useRef(onStatus)
+  const onSpeechStartRef = React.useRef(onSpeechStart)
+  const onStopInterruptRef = React.useRef(onStopInterrupt)
+  const onListeningChangeRef = React.useRef(onListeningChange)
+  const onAudioFrameRef = React.useRef(onAudioFrame)
+  React.useLayoutEffect(() => {
+    onRecordedRef.current = onRecorded
+    onHintRef.current = onHint
+    onStatusRef.current = onStatus
+    onSpeechStartRef.current = onSpeechStart
+    onStopInterruptRef.current = onStopInterrupt
+    onListeningChangeRef.current = onListeningChange
+    onAudioFrameRef.current = onAudioFrame
+  })
 
   const [isListening, setIsListening] = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
@@ -50,65 +70,61 @@ export function MicButton(props: {
   const speechConfirmMsRef = React.useRef<number | null>(null)
   const speechConfirmedRef = React.useRef(false)
   const lastVoiceMsRef = React.useRef<number | null>(null)
-  const baselineRef = React.useRef<number>(0.012) // typical quiet-room RMS ballpark
+  const baselineRef = React.useRef<number>(0.012)
   const pendingCommitSinceMsRef = React.useRef<number | null>(null)
 
   React.useEffect(() => {
     isSubmittingRef.current = isSubmitting
   }, [isSubmitting])
 
-  const stopAll = React.useCallback(
-    (opts?: { flushCurrent?: boolean }) => {
-      if (vadRafRef.current !== null) {
-        cancelAnimationFrame(vadRafRef.current)
-        vadRafRef.current = null
+  const stopAll = React.useCallback((opts?: { flushCurrent?: boolean }) => {
+    if (vadRafRef.current !== null) {
+      cancelAnimationFrame(vadRafRef.current)
+      vadRafRef.current = null
+    }
+
+    const mr = mediaRecorderRef.current
+    mediaRecorderRef.current = null
+    if (mr && mr.state !== 'inactive') {
+      try {
+        if (opts?.flushCurrent) mr.requestData()
+      } catch {
+        // ignore
       }
-
-      const mr = mediaRecorderRef.current
-      mediaRecorderRef.current = null
-      if (mr && mr.state !== 'inactive') {
-        try {
-          if (opts?.flushCurrent) mr.requestData()
-        } catch {
-          // ignore
-        }
-        try {
-          mr.stop()
-        } catch {
-          // ignore
-        }
+      try {
+        mr.stop()
+      } catch {
+        // ignore
       }
+    }
 
-      analyserRef.current = null
-      const ctx = audioCtxRef.current
-      audioCtxRef.current = null
-      if (ctx) {
-        try {
-          void ctx.close()
-        } catch {
-          // ignore
-        }
+    analyserRef.current = null
+    const ctx = audioCtxRef.current
+    audioCtxRef.current = null
+    if (ctx) {
+      try {
+        void ctx.close()
+      } catch {
+        // ignore
       }
+    }
 
-      streamRef.current?.getTracks().forEach((t) => t.stop())
-      streamRef.current = null
+    streamRef.current?.getTracks().forEach((t) => t.stop())
+    streamRef.current = null
 
-      chunksRef.current = []
-      speechActiveRef.current = false
-      speechStartMsRef.current = null
-      speechConfirmMsRef.current = null
-      speechConfirmedRef.current = false
-      lastVoiceMsRef.current = null
-      pendingCommitSinceMsRef.current = null
-    },
-    [],
-  )
+    chunksRef.current = []
+    speechActiveRef.current = false
+    speechStartMsRef.current = null
+    speechConfirmMsRef.current = null
+    speechConfirmedRef.current = false
+    lastVoiceMsRef.current = null
+    pendingCommitSinceMsRef.current = null
+  }, [])
 
   React.useEffect(() => () => stopAll({ flushCurrent: false }), [stopAll])
 
   const ensureListening = React.useCallback(async (): Promise<boolean> => {
     if (disabled) return false
-
     if (streamRef.current && audioCtxRef.current && analyserRef.current) return true
 
     let stream: MediaStream
@@ -116,14 +132,15 @@ export function MicButton(props: {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true })
     } catch (e) {
       console.error('Mic access denied:', e)
-      onStatus?.({ text: 'Microphone access denied', className: 'error' })
-      onHint?.('Mic access denied — check browser permissions')
+      // Per policy: only admit mic unavailable in user UI.
+      onStatusRef.current?.({ text: 'Mic unavailable', className: 'error' })
+      onHintRef.current?.('Mic unavailable')
       return false
     }
 
     const mimeType = getMimeType()
     if (!mimeType) {
-      onStatus?.({ text: 'No supported audio format', className: 'error' })
+      onStatusRef.current?.({ text: 'Mic unavailable', className: 'error' })
       stream.getTracks().forEach((t) => t.stop())
       return false
     }
@@ -177,13 +194,13 @@ export function MicButton(props: {
       if (blob.size < 1000) {
         setIsSubmitting(false)
         isSubmittingRef.current = false
-        onHint?.('Listening… speak anytime')
-        onStatus?.({ text: 'Listening…' })
+        onHintRef.current?.('Listening…')
+        onStatusRef.current?.({ text: 'Listening…' })
         return
       }
 
       try {
-        await onRecorded(blob, mimeType)
+        await onRecordedRef.current(blob, mimeType)
       } finally {
         setIsSubmitting(false)
         isSubmittingRef.current = false
@@ -217,12 +234,11 @@ export function MicButton(props: {
 
     const SILENCE_COMMIT_MS = 900
     const COMMIT_GRACE_MS = 150
-    // More robust than a fixed threshold: track a rolling noise floor, and trigger above it.
     const BASELINE_SMOOTHING = 0.02
     const SPEECH_ON_MULT = 2.6
     const SPEECH_OFF_MULT = 1.7
     const MIN_SPEECH_MS = 120
-    const CONFIRM_SPEECH_MS = 160
+    const CONFIRM_SPEECH_MS = 35
     const MIN_LEVEL_FOR_CONFIRM_MULT = 1.15
     const HINT_UPDATE_MS = 120
     let lastHintMs = 0
@@ -231,9 +247,9 @@ export function MicButton(props: {
       vadRafRef.current = requestAnimationFrame(step)
 
       analyser.getFloatTimeDomainData(timeDomain)
+      onAudioFrameRef.current?.(timeDomain)
       const level = rms(timeDomain)
 
-      // Update baseline slowly, but only strongly when we're quiet (prevents baseline from chasing speech).
       const baseline = baselineRef.current
       const quietBias = clamp01((baseline * 1.5 - level) / Math.max(1e-6, baseline))
       const alpha = BASELINE_SMOOTHING * (0.2 + 0.8 * quietBias)
@@ -262,23 +278,22 @@ export function MicButton(props: {
         const confirmLevel = level >= onThresh * MIN_LEVEL_FOR_CONFIRM_MULT
         if (!speechConfirmedRef.current && speechFor >= CONFIRM_SPEECH_MS && confirmLevel) {
           speechConfirmedRef.current = true
-          onSpeechStart?.()
+          onSpeechStartRef.current?.()
           startUtteranceRecording()
         }
 
         if (now - lastHintMs >= HINT_UPDATE_MS) {
           lastHintMs = now
           const sec = ((now - startedAt) / 1000).toFixed(1)
-          onHint?.(speechConfirmedRef.current ? `Listening… ${sec}s` : 'Listening…')
+          onHintRef.current?.(speechConfirmedRef.current ? `Listening… ${sec}s` : 'Listening…')
         }
         return
       }
 
       if (!speechActiveRef.current) {
-        // Idle listening.
         if (now - lastHintMs >= 700) {
           lastHintMs = now
-          onHint?.('Listening… speak anytime — click mic to stop')
+          onHintRef.current?.('Waiting for speech...')
         }
         return
       }
@@ -288,7 +303,6 @@ export function MicButton(props: {
       const lastVoiceMs = lastVoiceMsRef.current ?? speechStartMs
       const silentFor = now - lastVoiceMs
 
-      // Too-short spurts are treated as noise; reset quickly.
       if (spokeFor < MIN_SPEECH_MS && silentFor > 250) {
         speechActiveRef.current = false
         speechStartMsRef.current = null
@@ -298,7 +312,6 @@ export function MicButton(props: {
         return
       }
 
-      // If we never confirmed speech (likely noise), don't submit and don't interrupt.
       if (!speechConfirmedRef.current && silentFor > 220) {
         speechActiveRef.current = false
         speechStartMsRef.current = null
@@ -309,7 +322,6 @@ export function MicButton(props: {
       }
 
       if (silentFor >= SILENCE_COMMIT_MS && !isSubmittingRef.current) {
-        // Small grace window to avoid splitting natural pauses (common when code-switching / spelling foreign names).
         if (pendingCommitSinceMsRef.current === null) {
           pendingCommitSinceMsRef.current = now
           return
@@ -324,8 +336,8 @@ export function MicButton(props: {
         lastVoiceMsRef.current = null
         setIsSubmitting(true)
         isSubmittingRef.current = true
-        onHint?.('Heard you — sending…')
-        onStatus?.({ text: 'Processing…', className: 'speaking' })
+        onHintRef.current?.('Thinking of response...')
+        onStatusRef.current?.({ text: 'Processing…', className: 'speaking' })
         stopUtteranceRecording()
       } else {
         pendingCommitSinceMsRef.current = null
@@ -333,27 +345,29 @@ export function MicButton(props: {
     }
 
     vadRafRef.current = requestAnimationFrame(step)
-  }, [onHint, onSpeechStart, onStatus, startUtteranceRecording, stopUtteranceRecording])
+  }, [startUtteranceRecording, stopUtteranceRecording])
 
   async function startListening() {
     if (disabled || isListening) return
     const ok = await ensureListening()
     if (!ok) return
     setIsListening(true)
+    onListeningChangeRef.current?.(true)
     setIsSubmitting(false)
     isSubmittingRef.current = false
-    onStatus?.({ text: 'Listening…' })
-    onHint?.('Listening… speak anytime — click mic to stop')
+    onStatusRef.current?.({ text: 'Listening…' })
+    onHintRef.current?.('Waiting for speech...')
     startVadLoop()
   }
 
   function stopListening() {
     if (!isListening) return
     setIsListening(false)
+    onListeningChangeRef.current?.(false)
     setIsSubmitting(false)
     isSubmittingRef.current = false
-    onHint?.('')
-    onStatus?.({ text: 'Ready' })
+    onHintRef.current?.('')
+    onStatusRef.current?.({ text: 'Ready' })
     stopAll({ flushCurrent: false })
   }
 
@@ -369,10 +383,15 @@ export function MicButton(props: {
       id="mic-btn"
       type="button"
       title={hasSupport ? 'Click to start listening, click again to stop' : 'Microphone not supported in this browser'}
-      disabled={disabled || !hasSupport}
+      disabled={(!isListening && disabled) || !hasSupport}
       onClick={() => {
         onUserGesture?.()
-        return isListening ? stopListening() : void startListening()
+        if (isListening) {
+          onStopInterruptRef.current?.()
+          stopListening()
+          return
+        }
+        return void startListening()
       }}
     >
       <svg className="mic-icon" viewBox="0 0 24 24">
@@ -385,4 +404,3 @@ export function MicButton(props: {
     </button>
   )
 }
-

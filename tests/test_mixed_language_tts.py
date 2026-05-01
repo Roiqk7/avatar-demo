@@ -25,6 +25,11 @@ def _fake_detect(text: str):
 
 
 def test_segmentation_examples():
+    # Short utterances (<3 words) still get a single detection pass.
+    segs = segment_text_by_language("Jak se", detect_language=_fake_detect)
+    assert len(segs) == 1
+    assert segs[0].language == "cs"
+
     segs = segment_text_by_language("Jak se máš, hello?", detect_language=_fake_detect)
     assert len(segs) == 1
     assert segs[0].language == "cs"

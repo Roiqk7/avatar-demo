@@ -62,7 +62,12 @@ def main() -> None:
     system_prompt = compose_llm_system_prompt(prompt_body)
 
     # Assemble services — swap implementations here
-    stt = WhisperSttService(api_key=settings.openai_api_key)
+    stt = WhisperSttService(
+        api_key=settings.openai_api_key,
+        model=settings.stt_model,
+        language=settings.stt_language,
+        prompt=settings.stt_prompt,
+    )
     if args.llm_backend == "echo":
         logger.info("LLM backend: ECHO (input is repeated; no Chat Completions call)")
         llm = EchoLlmService(system_prompt=system_prompt)

@@ -20,6 +20,8 @@ export class AvatarRenderer {
   playing = false
   visemes: VisemeOut[] = []
   audioStartMs = 0
+  _queuedChunks = 0
+  _pendingVisemeTimers: number[] = []
 
   mood: 'neutral' | 'sad' = 'neutral'
 
@@ -548,6 +550,17 @@ export class AvatarRenderer {
 
   stopPlayback(): void {
     this.playing = false
+    // Cancel any pending viseme timeline switches (queued chunks).
+    if (this._pendingVisemeTimers.length) {
+      for (const id of this._pendingVisemeTimers) {
+        try {
+          window.clearTimeout(id)
+        } catch {
+          // ignore
+        }
+      }
+      this._pendingVisemeTimers = []
+    }
     const now = performance.now() - this.globalStartMs
     this.mouthCtrl?.notifyIdle(now)
     this.emoteCtrl?.notifyIdle(now)
@@ -557,6 +570,7 @@ export class AvatarRenderer {
     // Used for barge-in: stop audio immediately and reset mouth/eye state.
     this.audioPlayer.stop()
     if (this.playing) this.stopPlayback()
+    this._queuedChunks = 0
   }
 
   start(): void {
@@ -724,7 +738,7 @@ export class AvatarRenderer {
 
     let activeViseme = 0
     if (this.playing) {
-      const audioElapsed = now - this.audioStartMs
+      const audioElapsed = Math.max(0, now - this.audioStartMs)
       activeViseme = this._getActiveViseme(audioElapsed)
     } else {
       this.mouthCtrl?.notifyIdle(eyeElapsed)
@@ -817,12 +831,53 @@ export class AvatarRenderer {
     this.onHud?.(`${state} | Viseme: ${visemeLabel} | Mouth: ${mouthSprite} | Eye: ${eyeLabel}`)
   }
 
-  async playTts(base64Wav: string, visemes: VisemeOut[], onDone?: () => void): Promise<void> {
-    this.startPlayback(visemes, performance.now())
-    await this.audioPlayer.play(base64Wav, () => {
-      this.stopPlayback()
-      onDone?.()
-    })
+  async playTts(base64Wav: string, visemes: VisemeOut[], onDone?: () => void, onError?: (err: Error) => void): Promise<void> {
+    let didStart = false
+    await this.audioPlayer.play(
+      base64Wav,
+      () => {
+        this.stopPlayback()
+        onDone?.()
+      },
+      (err) => {
+        this.stopPlayback()
+        onError?.(err)
+      },
+      (startTimeMs) => {
+        if (didStart) return
+        didStart = true
+        this.startPlayback(visemes, startTimeMs)
+      },
+    )
+  }
+
+  async queueTtsChunk(base64Wav: string, visemes: VisemeOut[]): Promise<boolean> {
+    this._queuedChunks += 1
+    let scheduled = false
+    try {
+      const { startTimeMs, ended } = await this.audioPlayer.enqueue(base64Wav)
+      scheduled = true
+      // Important: for chunk 2+, startTimeMs is often in the future.
+      // Do NOT overwrite the current viseme timeline until this chunk actually begins.
+      const delayMs = Math.max(0, startTimeMs - performance.now())
+      const timerId = window.setTimeout(() => {
+        this._pendingVisemeTimers = this._pendingVisemeTimers.filter((x) => x !== timerId)
+        this.startPlayback(visemes, startTimeMs)
+      }, delayMs)
+      this._pendingVisemeTimers.push(timerId)
+      void ended.then(() => {
+        this._queuedChunks = Math.max(0, this._queuedChunks - 1)
+        if (this._queuedChunks === 0) this.stopPlayback()
+      })
+      return true
+    } catch (e) {
+      return false
+    } finally {
+      if (!scheduled) {
+        this._queuedChunks = Math.max(0, this._queuedChunks - 1)
+        if (this._queuedChunks === 0) this.stopPlayback()
+      }
+    }
   }
 }
 

@@ -35,7 +35,7 @@ class OpenAiChatLlmService:
         model: str,
         max_completion_tokens: int | None = None,
     ) -> None:
-        self._client: OpenAI = OpenAI(api_key=api_key)
+        self._client: OpenAI = OpenAI(api_key=api_key, timeout=30.0)
         raw: str = (system_prompt or "").strip()
         self._system_prompt: str = raw if raw else _DEFAULT_FALLBACK_SYSTEM
         self._model: str = model
@@ -89,3 +89,44 @@ class OpenAiChatLlmService:
 
         logger.debug('LLM response: "%s"', content[:120])
         return LlmResult(response=content, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens)
+
+    def generate_stream(self, user_text: str, *, history: list[ChatTurn] | None = None):
+        """Yield incremental text deltas from Chat Completions streaming API.
+
+        Returns an iterator of text chunks (may be empty strings).
+        """
+        user: str = user_text.strip()
+        if not user:
+            return iter(())
+
+        prior: list[ChatTurn] = list(history) if history else []
+        messages: list[dict[str, str]] = [{"role": "system", "content": self._system_prompt}]
+        for turn in prior:
+            role = turn.get("role")
+            content = (turn.get("content") or "").strip()
+            if role not in ("user", "assistant") or not content:
+                continue
+            messages.append({"role": role, "content": content})
+        messages.append({"role": "user", "content": user})
+
+        kwargs: dict = {
+            "model": self._model,
+            "messages": messages,
+            "stream": True,
+        }
+        if self._max_completion_tokens is not None:
+            kwargs["max_completion_tokens"] = self._max_completion_tokens
+
+        stream = self._client.chat.completions.create(**kwargs)
+
+        def _iter():
+            for event in stream:
+                try:
+                    choice = event.choices[0]
+                    delta = getattr(choice.delta, "content", None)
+                    if isinstance(delta, str) and delta:
+                        yield delta
+                except Exception:
+                    continue
+
+        return _iter()
